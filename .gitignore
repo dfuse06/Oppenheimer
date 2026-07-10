@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Oppenheimer runtime data
+workspace/
+builds/
+output/
+logs/
+
+# Kernel build artifacts
+*.o
+*.ko
+*.mod
+*.mod.c
+*.cmd
+Module.symvers
+modules.order
+System.map
+vmlinux
+bzImage
+
+# Editor files
+.idea/
+.vscode/
+*.swp
+*~
