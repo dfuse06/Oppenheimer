@@ -1,0 +1,6 @@
+config HID_RAZER_DFUSE
+	tristate "DFUSE Razer HID support"
+	depends on HID && USB
+	help
+	  Built-in DFUSE support for Razer keyboards and mice using
+	  driver sources adapted from OpenRazer.

@@ -27,3 +27,23 @@ bzImage
 .vscode/
 *.swp
 *~
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Kernel workspace and build output
+workspace/
+*.o
+*.ko
+*.ko.zst
+*.mod
+*.mod.c
+*.cmd
+Module.symvers
+modules.order
+
+# Editor backups
+*~
+*.bak
+*.backup-*

@@ -1,0 +1,9 @@
+{
+  "name": "DFUSE Razer HID",
+  "version": "1.0",
+  "description": "DFUSE bundled in-tree Razer HID keyboard and mouse driver",
+  "destination": "drivers/hid/hid-razer",
+  "config": "HID_RAZER_DFUSE",
+  "replaces": "HID_RAZER",
+  "driver_dir": "driver"
+}
