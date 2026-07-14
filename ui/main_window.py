@@ -1,3 +1,4 @@
+import platform
 import shlex
 import shutil
 from pathlib import Path
@@ -5,6 +6,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QStatusBar,
     QVBoxLayout,
 )
@@ -16,10 +18,12 @@ from engine.builder import (
     prepare_commands,
 )
 from engine.installer import install_commands
+from engine.uninstaller import uninstall_kernel_commands
 from engine.verifier import verification_commands
 from engine.worker import Worker
 from ui.background import BackgroundWidget
 from ui.build_log import BuildLogPanel
+from ui.installed_kernels import InstalledKernelsPanel
 from ui.left_panel import LeftPanel
 from ui.status_panel import StatusPanel
 from ui.styles import APP_STYLE
@@ -123,14 +127,18 @@ class Oppenheimer(BackgroundWidget):
         self.left = LeftPanel(list(KERNEL_SOURCES.keys()))
         self.log_panel = BuildLogPanel()
         self.status_panel = StatusPanel()
+        self.installed_kernels = InstalledKernelsPanel()
 
         center = QVBoxLayout()
-        center.addStretch(5)
-        center.addWidget(self.log_panel, 4)
+        center.addWidget(self.log_panel, 1)
+
+        right = QVBoxLayout()
+        right.addWidget(self.status_panel)
+        right.addWidget(self.installed_kernels, 1)
 
         body.addWidget(self.left, 3)
         body.addLayout(center, 7)
-        body.addWidget(self.status_panel, 3)
+        body.addLayout(right, 3)
 
         self.status_bar = QStatusBar()
         root.addWidget(self.status_bar)
@@ -217,6 +225,51 @@ class Oppenheimer(BackgroundWidget):
         self.left.btn_all.clicked.connect(
             self.prepare_and_build
         )
+        self.installed_kernels.remove_requested.connect(
+            self.uninstall_kernel
+        )
+
+    def uninstall_kernel(self, kernel_version: str) -> None:
+        if kernel_version == platform.release():
+            QMessageBox.warning(
+                self,
+                "Running Kernel",
+                "You cannot uninstall the kernel currently in use.",
+            )
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Uninstall Kernel",
+            (
+                "Uninstall this kernel?\n\n"
+                f"{kernel_version}\n\n"
+                "Package-managed kernels will be removed through pacman. "
+                "Manually installed kernels will have their matching modules "
+                "and boot files removed.\n\n"
+                "This action cannot be undone."
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        if answer != QMessageBox.Yes:
+            return
+
+        try:
+            commands = uninstall_kernel_commands(kernel_version)
+        except ValueError as error:
+            QMessageBox.critical(
+                self,
+                "Invalid Kernel",
+                str(error),
+            )
+            return
+
+        self.run_commands(
+            commands,
+            "uninstall",
+        )
 
     def kernel_source_changed(self, _name: str) -> None:
         self.build_succeeded = False
@@ -283,66 +336,35 @@ class Oppenheimer(BackgroundWidget):
             self.build_succeeded = success
 
         messages = {
-            (
-                "build",
-                True,
-            ): (
+            ("build", True): (
                 "\n✓ BUILD COMPLETE\n"
                 "The kernel is ready for installation.\n"
             ),
-            (
-                "build",
-                False,
-            ): (
+            ("build", False): (
                 "\n✗ BUILD FAILED\n"
                 "Installation remains disabled.\n"
             ),
-            (
-                "verify",
-                True,
-            ): "\n✓ CONFIGURATION VERIFIED\n",
-            (
-                "verify",
-                False,
-            ): "\n✗ CONFIGURATION CHECK FAILED\n",
-            (
-                "prepare",
-                True,
-            ): "\n✓ CONFIGURATION AND PATCHES APPLIED\n",
-            (
-                "prepare",
-                False,
-            ): "\n✗ PREPARATION FAILED\n",
-            (
-                "download",
-                True,
-            ): "\n✓ KERNEL SOURCE READY\n",
-            (
-                "download",
-                False,
-            ): "\n✗ KERNEL DOWNLOAD FAILED\n",
-            (
-                "dependencies",
-                True,
-            ): "\n✓ DEPENDENCIES READY\n",
-            (
-                "dependencies",
-                False,
-            ): "\n✗ DEPENDENCY INSTALLATION FAILED\n",
-            (
-                "install",
-                True,
-            ): "\n✓ INSTALLATION COMPLETE\n",
-            (
-                "install",
-                False,
-            ): "\n✗ INSTALLATION FAILED\n",
+            ("verify", True): "\n✓ CONFIGURATION VERIFIED\n",
+            ("verify", False): "\n✗ CONFIGURATION CHECK FAILED\n",
+            ("prepare", True): "\n✓ CONFIGURATION AND PATCHES APPLIED\n",
+            ("prepare", False): "\n✗ PREPARATION FAILED\n",
+            ("download", True): "\n✓ KERNEL SOURCE READY\n",
+            ("download", False): "\n✗ KERNEL DOWNLOAD FAILED\n",
+            ("dependencies", True): "\n✓ DEPENDENCIES READY\n",
+            ("dependencies", False): "\n✗ DEPENDENCY INSTALLATION FAILED\n",
+            ("install", True): "\n✓ INSTALLATION COMPLETE\n",
+            ("install", False): "\n✗ INSTALLATION FAILED\n",
+            ("uninstall", True): "\n✓ KERNEL UNINSTALLED\n",
+            ("uninstall", False): "\n✗ KERNEL UNINSTALL FAILED\n",
         }
 
         message = messages.get((action, success))
 
         if message:
             self.output.append(message)
+
+        if action == "uninstall":
+            self.installed_kernels.refresh()
 
         state = "complete" if success else "failed"
 
@@ -403,7 +425,7 @@ class Oppenheimer(BackgroundWidget):
             )
         else:
             self.output.append(
-                "\nEnvironment check complete. ⚛️\n"
+                "\nEnvironment check complete. ⚛\n"
             )
 
     def install_dependencies(self) -> None:
@@ -444,7 +466,6 @@ class Oppenheimer(BackgroundWidget):
             RAZER_APPLY,
             apply_xbox=self.left.apply_xbox.isChecked(),
             xbox_apply=None,
-           
         )
 
         self.run_commands(
@@ -477,7 +498,6 @@ class Oppenheimer(BackgroundWidget):
             RAZER_APPLY,
             apply_xbox=self.left.apply_xbox.isChecked(),
             xbox_apply=None,
-            
         )
 
         self.run_commands(
@@ -530,7 +550,6 @@ class Oppenheimer(BackgroundWidget):
             RAZER_APPLY,
             apply_xbox=self.left.apply_xbox.isChecked(),
             xbox_apply=None,
-            
         )
 
         commands += verification_commands(
@@ -547,7 +566,6 @@ class Oppenheimer(BackgroundWidget):
             source,
             self.build_jobs(),
             apply_xbox=self.left.apply_xbox.isChecked(),
-            
         )
 
         self.run_commands(
