@@ -49,7 +49,7 @@ KERNEL_SOURCES = {
 
 CONFIG_FILES = {
     "DFUSE 7.2": "config.dfuse-7.2",
-    "Zen 7.2": "config.zen-7.2",
+    "Zen 7.1.3": "config.zen-7.1.3",
     "Manjaro 7.2 (Golden)": "config.manjaro-7.2",
     "DFUSE Legacy": "config.dfuse",
     "DFUSE Slim": "config.dfuse-slim",
@@ -442,6 +442,9 @@ class Oppenheimer(BackgroundWidget):
             or "-DFUSE",
             self.left.apply_razer.isChecked(),
             RAZER_APPLY,
+            apply_xbox=self.left.apply_xbox.isChecked(),
+            xbox_apply=None,
+           
         )
 
         self.run_commands(
@@ -472,6 +475,9 @@ class Oppenheimer(BackgroundWidget):
             or "-DFUSE",
             self.left.apply_razer.isChecked(),
             RAZER_APPLY,
+            apply_xbox=self.left.apply_xbox.isChecked(),
+            xbox_apply=None,
+            
         )
 
         self.run_commands(
@@ -522,6 +528,9 @@ class Oppenheimer(BackgroundWidget):
             or "-DFUSE",
             self.left.apply_razer.isChecked(),
             RAZER_APPLY,
+            apply_xbox=self.left.apply_xbox.isChecked(),
+            xbox_apply=None,
+            
         )
 
         commands += verification_commands(
@@ -537,6 +546,8 @@ class Oppenheimer(BackgroundWidget):
         commands += compile_commands(
             source,
             self.build_jobs(),
+            apply_xbox=self.left.apply_xbox.isChecked(),
+            
         )
 
         self.run_commands(
