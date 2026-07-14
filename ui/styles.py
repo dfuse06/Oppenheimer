@@ -1,5 +1,31 @@
 APP_STYLE = """
-QWidget { color: #e9ffff; font-family: 'JetBrains Mono'; font-size: 11px; }
+QWidget {
+    color: #e9ffff;
+    font-size: 14px;
+}
+
+QPushButton {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+QCheckBox {
+    font-size: 14px;
+}
+
+QGroupBox {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+QLabel#title {
+    font-size: 22px;
+    font-weight: 700;
+}
+
+QPlainTextEdit {
+    font-size: 14px;
+}
 
 QWidget#glassPanel {
     background-color: rgba(4, 10, 13, 215);

@@ -55,22 +55,6 @@ Configure the kernel source, build jobs, configuration, DFUSE Razer integration,
 
 ---
 
-## Successful Build
-
-![Build Complete](screenshots/opp-2.png)
-
-Kernel successfully compiled and installed with real-time build logs and installation status.
-
----
-
-## Automatic Installation
-
-![Kernel Installation](screenshots/opp-3.png)
-
-Automatic module installation, kernel deployment, and privileged installation directly from the application.
-
----
-
 # Requirements
 
 ## Arch Linux / Manjaro
