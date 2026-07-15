@@ -1,98 +1,218 @@
 APP_STYLE = """
 QWidget {
-    color: #e9ffff;
-    font-size: 14px;
+    color: #e8ffff;
+    font-size: 13px;
 }
 
-QPushButton {
-    font-size: 14px;
-    font-weight: 600;
+QWidget#pageStack {
+    background: transparent;
 }
 
-QCheckBox {
-    font-size: 14px;
-}
-
-QGroupBox {
-    font-size: 14px;
-    font-weight: 700;
-}
-
-QLabel#title {
-    font-size: 22px;
-    font-weight: 700;
-}
-
-QPlainTextEdit {
-    font-size: 14px;
-}
-
-QWidget#glassPanel {
-    background-color: rgba(4, 10, 13, 215);
-    border: 1px solid rgba(0,245,212,125);
+QFrame#sidebar {
+    background: transparent;
+    border: 1px solid rgba(0, 245, 212, 75);
     border-radius: 12px;
 }
 
-QLabel#appTitle {
+QLabel#sidebarBrand {
     color: #00f5d4;
-    font-size: 26px;
+    font-size: 20px;
+    font-weight: 800;
+}
+
+QLabel#sidebarSubtitle {
+    color: #86aaa8;
+    font-size: 10px;
+    letter-spacing: 4px;
+    padding-left: 30px;
+    padding-bottom: 12px;
+}
+
+QFrame#modeCard {
+    background-color: rgba(0, 245, 212, 12);
+    border: 1px solid rgba(0, 245, 212, 80);
+    border-radius: 9px;
+    margin-bottom: 8px;
+}
+
+QLabel#modeTitle, QLabel#modeText,
+QLabel#navHeading, QLabel#sectionTitle {
+    color: #00f5d4;
+    font-weight: 800;
+}
+
+QLabel#modeText {
+    font-size: 9px;
+}
+
+QLabel#navHeading {
+    font-size: 10px;
+    padding-top: 10px;
+    padding-left: 6px;
+}
+
+QPushButton#navButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #c9dddd;
+    text-align: left;
+    padding: 8px 10px;
+    font-weight: 500;
+}
+
+QPushButton#navButton:hover {
+    background-color: rgba(0, 245, 212, 14);
+    color: white;
+}
+
+QPushButton#navButton:checked {
+    background-color: rgba(0, 130, 118, 90);
+    border-color: #00d8c2;
+    color: white;
+}
+
+QLabel#sidebarFooter {
+    color: #00f5d4;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+QLabel#pageTitle {
+    color: #00f5d4;
+    font-size: 28px;
+    font-weight: 800;
+}
+
+QLabel#pageSubtitle {
+    color: #b7d0cf;
+    font-size: 12px;
+    letter-spacing: 2px;
+    padding-bottom: 4px;
+}
+
+QLabel#headerMetric {
+    background-color: rgba(2, 12, 15, 220);
+    border: 1px solid rgba(0, 245, 212, 70);
+    border-radius: 8px;
+    color: #00f5d4;
+    padding: 10px 14px;
     font-weight: 700;
 }
 
-QLabel#sectionTitle {
+QFrame#glassPanel {
+    background: transparent;
+    border: 1px solid rgba(0, 245, 212, 90);
+    border-radius: 10px;
+}
+
+QFrame#miniCard, QFrame#patchCard {
+    background-color: rgba(2, 17, 20, 210);
+    border: 1px solid rgba(0, 245, 212, 55);
+    border-radius: 8px;
+}
+
+QLabel#stepNumber {
     color: #00f5d4;
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 19px;
+    font-weight: 800;
+}
+
+QLabel#stepName {
+    color: white;
+    font-weight: 800;
+}
+
+QLabel#mutedLabel, QLabel#pathLabel {
+    color: #89a8a7;
+    font-size: 11px;
+}
+
+QLabel#pathLabel {
+    color: #5fc9bd;
+}
+
+QLabel#patchSummary {
+    background-color: rgba(0, 245, 212, 10);
+    border: 1px solid rgba(0, 245, 212, 50);
+    border-radius: 8px;
+    padding: 12px;
+    color: #cffff9;
 }
 
 QLabel#statusValue {
     color: #00f5d4;
-    font-size: 18px;
-    font-weight: 700;
+    font-size: 20px;
+    font-weight: 800;
 }
 
 QPushButton {
-    background-color: rgba(5,28,32,230);
-    border: 1px solid #00a996;
+    background-color: rgba(4, 24, 28, 235);
+    border: 1px solid #008f83;
     border-radius: 7px;
-    padding: 8px;
+    color: #eaffff;
+    padding: 8px 10px;
+    font-weight: 650;
 }
 
 QPushButton:hover {
-    background-color: rgba(0,105,95,230);
+    background-color: rgba(0, 96, 88, 230);
     border-color: #00f5d4;
 }
 
-QPushButton:disabled {
-    color: #607171;
-    border-color: #304242;
-    background-color: rgba(5,10,12,210);
+QPushButton#primaryButton {
+    background-color: rgba(0, 115, 104, 210);
+    border: 1px solid #00f5d4;
+    min-height: 22px;
 }
 
-QComboBox,
-QLineEdit,
-QSpinBox {
-    background-color: rgba(0,0,0,200);
-    border: 1px solid #426966;
+QPushButton#primaryButton:hover {
+    background-color: rgba(0, 165, 148, 225);
+}
+
+QPushButton:disabled {
+    color: #566868;
+    border-color: #2e4141;
+    background-color: rgba(4, 9, 11, 220);
+}
+
+QComboBox, QLineEdit, QSpinBox, QListWidget {
+    background-color: rgba(0, 3, 5, 220);
+    border: 1px solid #355d5a;
     border-radius: 6px;
     padding: 7px;
+    selection-background-color: #007e72;
+}
+
+QCheckBox {
+    color: #eaffff;
+    font-weight: 700;
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 17px;
+    height: 17px;
 }
 
 QTextEdit {
-    background-color: transparent;
-    border: 1px solid rgba(0,245,212,90);
-    border-radius: 9px;
+    background: transparent;
+    border: 1px solid rgba(0, 245, 212, 65);
+    border-radius: 8px;
     color: #dffefe;
     padding: 8px;
 }
 
 QStatusBar {
-    background-color: rgba(0,3,5,235);
+    background-color: rgba(0, 3, 5, 238);
     color: #cffff8;
-    border-top: 1px solid rgba(0,245,212,95);
+    border-top: 1px solid rgba(0, 245, 212, 95);
 }
 
-/* ---------------- Installed Kernel Cards ---------------- */
+QLabel#placeholderMessage {
+    color: #7ea7a4;
+    font-size: 18px;
+}
 
 QFrame#kernelCard {
     background-color: rgba(8,18,22,180);
@@ -108,32 +228,18 @@ QFrame#runningKernelCard {
     margin: 4px;
 }
 
-QLabel#kernelName {
+QLabel#kernelName, QLabel#runningKernelName {
     color: white;
     font-size: 15px;
     font-weight: bold;
 }
 
-QLabel#runningKernelName {
+QLabel#runningKernelName, QLabel#runningKernelState {
     color: #42ff88;
-    font-size: 15px;
-    font-weight: bold;
 }
 
-QLabel#kernelState {
-    color: #b8c8c8;
-}
-
-QLabel#runningKernelState {
-    color: #42ff88;
-    font-weight: bold;
-}
-
-QLabel#kernelPath {
-    color: #86a6a8;
-    font-size: 10px;
-}
-
+QLabel#kernelState { color: #b8c8c8; }
+QLabel#kernelPath { color: #86a6a8; font-size: 10px; }
 QLabel#runningBadge {
     background-color: #0d9d39;
     color: white;
@@ -141,28 +247,59 @@ QLabel#runningBadge {
     padding: 4px 10px;
     font-weight: bold;
 }
-
 QPushButton#kernelRemoveButton {
-    min-width: 34px;
-    max-width: 34px;
-    min-height: 34px;
-    max-height: 34px;
+    min-width: 34px; max-width: 34px;
+    min-height: 34px; max-height: 34px;
     padding: 0px;
-    font-size: 16px;
 }
 
-QPushButton#refreshButton {
-    padding-left: 12px;
-    padding-right: 12px;
+/* Add or replace these PATCH LIBRARY rules in ui/styles.py */
+
+QWidget#patchGridWidget,
+QScrollArea#patchScroll,
+QScrollArea#patchScroll > QWidget > QWidget {
+    background: transparent;
 }
 
-QLabel#kernelWarning {
-    color: #7ce8d8;
-    padding: 6px;
+QFrame#patchCard {
+    background-color: rgba(1, 12, 14, 90);
+    border: 1px solid rgba(0, 245, 212, 85);
+    border-radius: 10px;
 }
 
-QLabel#kernelEmpty {
-    color: #7ce8d8;
-    font-size: 13px;
+QFrame#patchCard:hover {
+    background-color: rgba(0, 45, 42, 95);
+    border-color: rgba(0, 245, 212, 190);
+}
+
+QLabel#patchLibrarySummary {
+    color: #8fe9df;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+QLabel#patchStatus {
+    color: #ff5c66;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+QLabel#patchStatus[ready="true"] {
+    color: #46ff83;
+}
+
+QLabel#patchSelectionState {
+    color: #91a9a7;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+QLabel#patchSelectionState[enabled="true"] {
+    color: #46ff83;
+}
+
+QPushButton#patchValidateButton {
+    padding: 5px 10px;
+    min-height: 18px;
 }
 """

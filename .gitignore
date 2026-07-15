@@ -47,3 +47,6 @@ modules.order
 *~
 *.bak
 *.backup-*
+
+# Local UI state
+patches/patch-selections.json
