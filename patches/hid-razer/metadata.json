@@ -5,5 +5,34 @@
   "destination": "drivers/hid/hid-razer",
   "config": "HID_RAZER_DFUSE",
   "replaces": "HID_RAZER",
-  "driver_dir": "driver"
+  "driver_dir": "driver",
+
+  "repository": "https://github.com/openrazer/openrazer.git",
+  "branch": "master",
+
+  "upstream_source_dir": "driver",
+
+  "preserve_files": [
+    "Kconfig",
+    "Makefile",
+    "razer-dfuse-main.c"
+  ],
+
+  "managed_files": [
+    "compat.c",
+    "compat.h",
+    "razeraccessory_driver.c",
+    "razeraccessory_driver.h",
+    "razerchromacommon.c",
+    "razerchromacommon.h",
+    "razercommon.c",
+    "razercommon.h",
+    "razerkbd_driver.c",
+    "razerkbd_driver.h",
+    "razerkraken_driver.c",
+    "razerkraken_driver.h",
+    "razermouse_driver.c",
+    "razermouse_driver.h",
+    "usb_hid_keys.h"
+  ]
 }

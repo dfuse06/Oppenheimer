@@ -6506,7 +6506,7 @@ MODULE_DEVICE_TABLE(hid, razer_devices);
 /**
  * Describes the contents of the driver
  */
-struct hid_driver razer_kbd_driver = {
+static struct hid_driver razer_kbd_driver = {
     .name = "razerkbd",
     .id_table = razer_devices,
     .input_mapping = razer_kbd_input_mapping,
@@ -6517,4 +6517,4 @@ struct hid_driver razer_kbd_driver = {
     .input_configured = razer_input_configured,
 };
 
-// module_hid_driver(razer_kbd_driver);
+module_hid_driver(razer_kbd_driver);

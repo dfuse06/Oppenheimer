@@ -8638,7 +8638,7 @@ MODULE_DEVICE_TABLE(hid, razer_devices);
 /**
  * Describes the contents of the driver
  */
-struct hid_driver razer_mouse_driver = {
+static struct hid_driver razer_mouse_driver = {
     .name      = "razermouse",
     .id_table  = razer_devices,
     .probe     = razer_mouse_probe,
@@ -8649,4 +8649,4 @@ struct hid_driver razer_mouse_driver = {
     .input_configured = razer_input_configured,
 };
 
-// module_hid_driver(razer_mouse_driver);
+module_hid_driver(razer_mouse_driver);

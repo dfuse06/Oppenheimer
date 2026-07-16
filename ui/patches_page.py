@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -21,6 +23,8 @@ from PySide6.QtWidgets import (
 class PatchCard(QFrame):
     toggled = Signal()
     validate_requested = Signal()
+    update_requested = Signal()
+    remove_requested = Signal()
 
     def __init__(
         self,
@@ -28,15 +32,17 @@ class PatchCard(QFrame):
         description: str,
         path: Path,
         checked: bool,
+        managed: bool = False,
     ) -> None:
         super().__init__()
 
         self.patch_name = name
         self.patch_path = path
+        self.managed = managed
 
         self.setObjectName("patchCard")
-        self.setMinimumHeight(150)
-        self.setMaximumHeight(175)
+        self.setMinimumHeight(160)
+        self.setMaximumHeight(190)
         self.setSizePolicy(
             QSizePolicy.Expanding,
             QSizePolicy.Fixed,
@@ -47,18 +53,13 @@ class PatchCard(QFrame):
         root.setSpacing(7)
 
         header = QHBoxLayout()
-        header.setSpacing(8)
 
         self.checkbox = QCheckBox(name)
         self.checkbox.setChecked(checked)
-        self.checkbox.setProperty("patchPath", str(path))
-        self.checkbox.setProperty("description", description)
 
         self.status = QLabel()
         self.status.setObjectName("patchStatus")
-        self.status.setAlignment(
-            Qt.AlignRight | Qt.AlignVCenter
-        )
+        self.status.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         header.addWidget(self.checkbox, 1)
         header.addWidget(self.status)
@@ -66,45 +67,50 @@ class PatchCard(QFrame):
         detail = QLabel(description)
         detail.setObjectName("mutedLabel")
         detail.setWordWrap(True)
-        detail.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Preferred,
-        )
 
         path_label = QLabel(str(path))
         path_label.setObjectName("pathLabel")
-        path_label.setWordWrap(False)
-        path_label.setTextInteractionFlags(
-            Qt.TextSelectableByMouse
-        )
+        path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
-        footer = QHBoxLayout()
-        footer.setSpacing(8)
+        buttons = QHBoxLayout()
 
         self.btn_validate = QPushButton("VALIDATE")
         self.btn_validate.setObjectName("patchValidateButton")
-        self.btn_validate.setMaximumWidth(100)
+        buttons.addWidget(self.btn_validate)
+
+        self.btn_update: QPushButton | None = None
+        self.btn_remove: QPushButton | None = None
+
+        if managed:
+            self.btn_update = QPushButton("UPDATE")
+            self.btn_update.setObjectName("patchValidateButton")
+            self.btn_remove = QPushButton("REMOVE FILES")
+            self.btn_remove.setObjectName("patchValidateButton")
+
+            buttons.addWidget(self.btn_update)
+            buttons.addWidget(self.btn_remove)
+
+        buttons.addStretch(1)
 
         self.selection_label = QLabel()
         self.selection_label.setObjectName("patchSelectionState")
-        self.selection_label.setAlignment(
-            Qt.AlignRight | Qt.AlignVCenter
-        )
-
-        footer.addWidget(self.btn_validate)
-        footer.addStretch(1)
-        footer.addWidget(self.selection_label)
+        self.selection_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        buttons.addWidget(self.selection_label)
 
         root.addLayout(header)
         root.addWidget(detail)
         root.addStretch(1)
         root.addWidget(path_label)
-        root.addLayout(footer)
+        root.addLayout(buttons)
 
         self.checkbox.toggled.connect(self._state_changed)
-        self.btn_validate.clicked.connect(
-            self.validate_requested.emit
-        )
+        self.btn_validate.clicked.connect(self.validate_requested.emit)
+
+        if self.btn_update is not None:
+            self.btn_update.clicked.connect(self.update_requested.emit)
+
+        if self.btn_remove is not None:
+            self.btn_remove.clicked.connect(self.remove_requested.emit)
 
         self.refresh_state()
 
@@ -114,15 +120,18 @@ class PatchCard(QFrame):
     def set_checked(self, checked: bool) -> None:
         self.checkbox.setChecked(checked)
 
+    def set_status(self, text: str, ready: bool = False) -> None:
+        self.status.setText(text)
+        self.status.setProperty("ready", ready)
+        self.status.style().unpolish(self.status)
+        self.status.style().polish(self.status)
+
     def refresh_state(self) -> None:
         exists = self.patch_path.exists()
 
-        self.status.setText(
-            "READY" if exists else "MISSING"
-        )
-        self.status.setProperty(
-            "ready",
-            exists,
+        self.set_status(
+            "READY" if exists else "MISSING",
+            ready=exists,
         )
 
         self.selection_label.setText(
@@ -132,16 +141,8 @@ class PatchCard(QFrame):
             "enabled",
             self.is_checked(),
         )
-
-        self.status.style().unpolish(self.status)
-        self.status.style().polish(self.status)
-
-        self.selection_label.style().unpolish(
-            self.selection_label
-        )
-        self.selection_label.style().polish(
-            self.selection_label
-        )
+        self.selection_label.style().unpolish(self.selection_label)
+        self.selection_label.style().polish(self.selection_label)
 
     def _state_changed(self) -> None:
         self.refresh_state()
@@ -155,14 +156,9 @@ class PatchesPage(QWidget):
         super().__init__()
 
         self.patches_root = patches_root
-        self.patches_root.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-        self.state_file = (
-            self.patches_root / "patch-selections.json"
-        )
+        self.patches_root.mkdir(parents=True, exist_ok=True)
 
+        self.state_file = self.patches_root / "patch-selections.json"
         self.cards: list[PatchCard] = []
 
         root = QVBoxLayout(self)
@@ -182,26 +178,18 @@ class PatchesPage(QWidget):
         library.setObjectName("glassPanel")
 
         library_layout = QVBoxLayout(library)
-        library_layout.setContentsMargins(
-            10,
-            10,
-            10,
-            10,
-        )
+        library_layout.setContentsMargins(10, 10, 10, 10)
         library_layout.setSpacing(10)
 
         toolbar = QHBoxLayout()
 
-        toolbar.addWidget(
-            self._title("AVAILABLE PATCH SETS")
-        )
+        section_title = QLabel("AVAILABLE PATCH SETS")
+        section_title.setObjectName("sectionTitle")
+        toolbar.addWidget(section_title)
         toolbar.addStretch(1)
 
         self.summary = QLabel()
         self.summary.setObjectName("patchLibrarySummary")
-        self.summary.setAlignment(
-            Qt.AlignRight | Qt.AlignVCenter
-        )
         toolbar.addWidget(self.summary)
 
         library_layout.addLayout(toolbar)
@@ -210,9 +198,7 @@ class PatchesPage(QWidget):
         scroll.setObjectName("patchScroll")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarAlwaysOff
-        )
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         grid_widget = QWidget()
         grid_widget.setObjectName("patchGridWidget")
@@ -230,39 +216,43 @@ class PatchesPage(QWidget):
 
         root.addWidget(library, 1)
 
-        self.apply_razer = self._add_patch_card(
-            "Razer HID Driver",
-            "In-tree DFUSE Razer keyboard and mouse driver.",
-            self.patches_root / "hid-razer",
-            True,
+        self.razer_card = self._add_patch_card(
+            name="Razer HID Driver",
+            description="In-tree DFUSE Razer keyboard and mouse driver.",
+            path=self.patches_root / "hid-razer",
+            checked=True,
+            managed=True,
         )
-        self.apply_xbox = self._add_patch_card(
-            "Xbox Controller Support",
-            "Kernel controller options and future Xbox driver patches.",
-            self.patches_root / "xbox",
-            True,
+        self.apply_razer = self.razer_card.checkbox
+
+        self.xbox_card = self._add_patch_card(
+            name="Xbox Controller Support",
+            description="Kernel controller options and future Xbox driver patches.",
+            path=self.patches_root / "xbox",
+            checked=True,
         )
-        self.cachyos_base = self._add_patch_card(
-            "CachyOS Base Patch Set",
-            "CachyOS performance and desktop-oriented kernel patches.",
-            self.patches_root / "cachyos",
-            False,
+        self.apply_xbox = self.xbox_card.checkbox
+
+        self.cachyos_card = self._add_patch_card(
+            name="CachyOS Base Patch Set",
+            description="CachyOS performance and desktop-oriented kernel patches.",
+            path=self.patches_root / "cachyos",
+            checked=False,
         )
-        self.bore = self._add_patch_card(
-            "BORE Scheduler",
-            "Burst-Oriented Response Enhancer scheduler patch set.",
-            self.patches_root / "cachyos-bore",
-            False,
+
+        self.bore_card = self._add_patch_card(
+            name="BORE Scheduler",
+            description="Burst-Oriented Response Enhancer scheduler patch set.",
+            path=self.patches_root / "cachyos-bore",
+            checked=False,
         )
+
+        self.razer_card.update_requested.connect(self._update_razer)
+        self.razer_card.validate_requested.connect(self._validate_razer)
+        self.razer_card.remove_requested.connect(self._remove_razer_files)
 
         self._load_state()
         self._refresh()
-
-    @staticmethod
-    def _title(text: str) -> QLabel:
-        label = QLabel(text)
-        label.setObjectName("sectionTitle")
-        return label
 
     def _add_patch_card(
         self,
@@ -270,21 +260,22 @@ class PatchesPage(QWidget):
         description: str,
         path: Path,
         checked: bool,
-    ) -> QCheckBox:
+        managed: bool = False,
+    ) -> PatchCard:
         card = PatchCard(
-            name,
-            description,
-            path,
-            checked,
+            name=name,
+            description=description,
+            path=path,
+            checked=checked,
+            managed=managed,
         )
 
-        card.toggled.connect(
-            self._selection_updated
-        )
-        card.validate_requested.connect(
-            lambda current=card:
-            self.validate_card(current)
-        )
+        card.toggled.connect(self._selection_updated)
+
+        if not managed:
+            card.validate_requested.connect(
+                lambda current=card: self._validate_basic_card(current)
+            )
 
         index = len(self.cards)
         row = index // 2
@@ -293,13 +284,10 @@ class PatchesPage(QWidget):
         self.grid.addWidget(card, row, column)
         self.cards.append(card)
 
-        return card.checkbox
+        return card
 
     def checkboxes(self) -> list[QCheckBox]:
-        return [
-            card.checkbox
-            for card in self.cards
-        ]
+        return [card.checkbox for card in self.cards]
 
     def enabled_names(self) -> list[str]:
         return [
@@ -308,46 +296,282 @@ class PatchesPage(QWidget):
             if card.is_checked()
         ]
 
-    def _selection_updated(self) -> None:
+    def enabled_patch_ids(self) -> list[str]:
+        mapping = {
+            "Razer HID Driver": "hid-razer",
+            "Xbox Controller Support": "xbox",
+            "CachyOS Base Patch Set": "cachyos",
+            "BORE Scheduler": "cachyos-bore",
+        }
+
+        return [
+            mapping[card.patch_name]
+            for card in self.cards
+            if card.is_checked() and card.patch_name in mapping
+        ]
+
+    def validate(self) -> None:
+        for card in self.cards:
+            if not card.is_checked():
+                continue
+
+            if card is self.razer_card:
+                self._validate_razer(show_message=False)
+            else:
+                self._validate_basic_card(card, show_message=False)
+
         self._refresh()
+
+    def _selection_updated(self) -> None:
         self._save_state()
+        self._refresh()
         self.selection_changed.emit()
 
     def _refresh(self) -> None:
         selected = self.enabled_names()
 
         for card in self.cards:
-            card.refresh_state()
+            if card is not self.razer_card:
+                card.refresh_state()
 
-        if selected:
-            self.summary.setText(
-                f"{len(selected)} ENABLED"
-            )
-        else:
-            self.summary.setText(
-                "NO PATCHES ENABLED"
-            )
+        self._refresh_razer_status()
 
-    def validate_card(
+        self.summary.setText(
+            f"{len(selected)} ENABLED"
+            if selected
+            else "NO PATCHES ENABLED"
+        )
+
+    def _validate_basic_card(
         self,
         card: PatchCard,
-    ) -> None:
-        card.refresh_state()
+        show_message: bool = True,
+    ) -> bool:
+        exists = card.patch_path.exists()
 
-        if card.patch_path.exists():
-            card.status.setText("VALID")
+        card.set_status(
+            "READY" if exists else "MISSING",
+            ready=exists,
+        )
+
+        if show_message:
+            if exists:
+                QMessageBox.information(
+                    self,
+                    "Patch Validation",
+                    f"{card.patch_name} is ready.",
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Patch Validation",
+                    f"Patch path is missing:\n{card.patch_path}",
+                )
+
+        return exists
+
+    def _razer_paths(self) -> tuple[Path, Path, Path]:
+        patch_dir = self.patches_root / "hid-razer"
+
+        return (
+            patch_dir / "metadata.json",
+            patch_dir / "driver",
+            patch_dir / "sync_upstream.py",
+        )
+
+    def _load_razer_metadata(self) -> dict:
+        metadata_file, _, _ = self._razer_paths()
+
+        if not metadata_file.is_file():
+            raise FileNotFoundError(
+                f"Razer metadata is missing:\n{metadata_file}"
+            )
+
+        return json.loads(
+            metadata_file.read_text(encoding="utf-8")
+        )
+
+    def _razer_validation(self) -> tuple[bool, list[str]]:
+        try:
+            metadata = self._load_razer_metadata()
+        except (OSError, ValueError, TypeError) as error:
+            return False, [str(error)]
+
+        _, driver_dir, sync_script = self._razer_paths()
+        missing: list[str] = []
+
+        for filename in metadata.get("preserve_files", []):
+            if not (driver_dir / filename).is_file():
+                missing.append(f"preserved: {filename}")
+
+        for filename in metadata.get("managed_files", []):
+            if not (driver_dir / filename).is_file():
+                missing.append(f"managed: {filename}")
+
+        if not sync_script.is_file():
+            missing.append("sync_upstream.py")
+
+        return not missing, missing
+
+    def _refresh_razer_status(self) -> None:
+        valid, _missing = self._razer_validation()
+
+        self.razer_card.set_status(
+            "READY" if valid else "MISSING",
+            ready=valid,
+        )
+
+        self.razer_card.selection_label.setText(
+            "ENABLED"
+            if self.razer_card.is_checked()
+            else "NOT SELECTED"
+        )
+        self.razer_card.selection_label.setProperty(
+            "enabled",
+            self.razer_card.is_checked(),
+        )
+        self.razer_card.selection_label.style().unpolish(
+            self.razer_card.selection_label
+        )
+        self.razer_card.selection_label.style().polish(
+            self.razer_card.selection_label
+        )
+
+    def _update_razer(self) -> None:
+        _, _, sync_script = self._razer_paths()
+
+        if not sync_script.is_file():
+            QMessageBox.critical(
+                self,
+                "Razer Update",
+                f"Sync script is missing:\n{sync_script}",
+            )
+            return
+
+        if self.razer_card.btn_update is not None:
+            self.razer_card.btn_update.setEnabled(False)
+
+        self.razer_card.set_status("UPDATING", ready=False)
+
+        try:
+            result = subprocess.run(
+                ["python3", str(sync_script)],
+                cwd=str(sync_script.parent),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError as error:
+            QMessageBox.critical(
+                self,
+                "Razer Update Failed",
+                str(error),
+            )
+            result = None
+        finally:
+            if self.razer_card.btn_update is not None:
+                self.razer_card.btn_update.setEnabled(True)
+
+        if result is None:
+            self._refresh_razer_status()
+            return
+
+        if result.returncode != 0:
+            details = result.stderr.strip() or result.stdout.strip()
+
+            QMessageBox.critical(
+                self,
+                "Razer Update Failed",
+                details or "The updater returned an error.",
+            )
         else:
-            card.status.setText("MISSING")
+            QMessageBox.information(
+                self,
+                "Razer Updated",
+                result.stdout.strip() or "Razer driver files updated.",
+            )
 
-        card.status.style().unpolish(card.status)
-        card.status.style().polish(card.status)
+        self._refresh_razer_status()
 
-    def validate(self) -> None:
-        for card in self.cards:
-            if card.is_checked():
-                self.validate_card(card)
+    def _validate_razer(
+        self,
+        show_message: bool = True,
+    ) -> bool:
+        valid, missing = self._razer_validation()
 
-        self._refresh()
+        self._refresh_razer_status()
+
+        if show_message:
+            if valid:
+                metadata = self._load_razer_metadata()
+
+                QMessageBox.information(
+                    self,
+                    "Razer Validation",
+                    (
+                        "DFUSE Razer HID is ready.\n\n"
+                        f"Managed files: "
+                        f"{len(metadata.get('managed_files', []))}\n"
+                        f"Preserved DFUSE files: "
+                        f"{len(metadata.get('preserve_files', []))}"
+                    ),
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Razer Validation",
+                    "Missing files:\n\n"
+                    + "\n".join(f"• {item}" for item in missing),
+                )
+
+        return valid
+
+    def _remove_razer_files(self) -> None:
+        try:
+            metadata = self._load_razer_metadata()
+        except (OSError, ValueError, TypeError) as error:
+            QMessageBox.critical(
+                self,
+                "Remove Razer Files",
+                str(error),
+            )
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Remove Downloaded Razer Files",
+            (
+                "Remove the downloaded OpenRazer driver files?\n\n"
+                "Kconfig, Makefile, and razer-dfuse-main.c "
+                "will be preserved."
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        if answer != QMessageBox.Yes:
+            return
+
+        _, driver_dir, _ = self._razer_paths()
+        removed = 0
+
+        for filename in metadata.get("managed_files", []):
+            path = driver_dir / filename
+
+            if path.is_file():
+                path.unlink()
+                removed += 1
+
+        self._refresh_razer_status()
+
+        QMessageBox.information(
+            self,
+            "Razer Files Removed",
+            (
+                f"Removed {removed} managed files.\n\n"
+                "DFUSE integration files were preserved."
+            ),
+        )
 
     def _save_state(self) -> None:
         data = {
@@ -368,9 +592,7 @@ class PatchesPage(QWidget):
 
         try:
             data = json.loads(
-                self.state_file.read_text(
-                    encoding="utf-8"
-                )
+                self.state_file.read_text(encoding="utf-8")
             )
         except (OSError, ValueError):
             return
