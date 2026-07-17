@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config HID_XPADNEO_DFUSE
+	tristate "DFUSE xpadneo Bluetooth Xbox controller support"
+	depends on HID
+	depends on BT
+	depends on INPUT
+	select INPUT_FF_MEMLESS
+	help
+	  Enable the DFUSE-integrated xpadneo driver for Xbox One,
+	  Xbox Elite and Xbox Series controllers connected over Bluetooth.
+
+	  The driver includes rumble, battery reporting, controller mappings
+	  and support for compatible Bluetooth Xbox-style controllers.
+
+	  Choose M to build hid-xpadneo as a module.

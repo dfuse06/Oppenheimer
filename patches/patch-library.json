@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "patches": [
+    {
+      "patch_id": "hid-razer",
+      "name": "Razer HID",
+      "description": "DFUSE in-tree Razer keyboard and mouse driver patch.",
+      "path": "/home/dfuse/Projects/DFUSE-Kernel-Forge/patches/hid-razer",
+      "enabled": false,
+      "category": "Driver",
+      "order": 20
+    },
+    {
+      "patch_id": "xbox",
+      "name": "Xbox Controller Support",
+      "description": "Xbox controller configuration and driver patch set.",
+      "path": "/home/dfuse/Projects/DFUSE-Kernel-Forge/patches/xbox",
+      "enabled": false,
+      "category": "Controller",
+      "order": 30
+    }
+  ]
+}

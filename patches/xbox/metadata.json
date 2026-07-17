@@ -1,0 +1,36 @@
+{
+  "name": "DFUSE Xbox Controller Support",
+  "version": "1.0",
+  "description": "DFUSE bundled in-tree Xbox controller drivers for USB and Bluetooth",
+  "driver_dir": "driver",
+  "sources": [
+    {
+      "id": "xpad",
+      "name": "XPAD",
+      "description": "Xbox controller support over USB and compatible wireless adapters",
+      "repository": "https://github.com/paroj/xpad.git",
+      "branch": "master",
+      "destination": "drivers/input/joystick",
+      "config": "JOYSTICK_XPAD",
+      "upstream_source_dir": ".",
+      "managed_files": [
+        "xpad.c"
+      ]
+    },
+    {
+      "id": "xpadneo",
+      "name": "XPADNEO",
+      "description": "Xbox controller support over Bluetooth",
+      "repository": "https://github.com/atar-axis/xpadneo.git",
+      "branch": "master",
+      "destination": "drivers/hid/hid-xpadneo",
+      "config": "HID_XPADNEO_DFUSE",
+      "upstream_source_dir": "hid-xpadneo",
+      "preserve_files": [
+        "Kconfig",
+        "Makefile"
+      ],
+      "managed_files": []
+    }
+  ]
+}
