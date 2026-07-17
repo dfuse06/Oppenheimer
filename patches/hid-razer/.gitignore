@@ -1,0 +1,7 @@
+# Ignore downloaded OpenRazer source files
+driver/*
+
+# Keep Oppenheimer integration files
+!driver/Kconfig
+!driver/Makefile
+!driver/razer-dfuse-main.c
