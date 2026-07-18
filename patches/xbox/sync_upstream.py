@@ -51,15 +51,15 @@ def load_metadata() -> dict[str, Any]:
         ) from exc
 
 
-def verify_managed_files(
+def verify_managed_paths(
     upstream_dir: Path,
-    managed_files: list[str],
+    managed_paths: list[str],
     source_name: str,
 ) -> None:
     missing = [
-        filename
-        for filename in managed_files
-        if not (upstream_dir / filename).is_file()
+        path_name
+        for path_name in managed_paths
+        if not (upstream_dir / path_name).exists()
     ]
 
     if missing:
@@ -69,31 +69,45 @@ def verify_managed_files(
         )
 
         raise SyncError(
-            f"{source_name}: upstream managed files are missing:\n"
+            f"{source_name}: upstream managed paths are missing:\n"
             f"{formatted}"
         )
 
 
-def copy_managed_files(
+def copy_managed_paths(
     upstream_dir: Path,
     destination_dir: Path,
-    managed_files: list[str],
+    managed_paths: list[str],
 ) -> None:
     destination_dir.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    for filename in managed_files:
-        source = upstream_dir / filename
-        destination = destination_dir / filename
+    for path_name in managed_paths:
+        source = upstream_dir / path_name
+        destination = destination_dir / path_name
 
         destination.parent.mkdir(
             parents=True,
             exist_ok=True,
         )
 
-        shutil.copy2(source, destination)
+        if destination.is_dir():
+            shutil.rmtree(destination)
+        elif destination.exists():
+            destination.unlink()
+
+        if source.is_dir():
+            shutil.copytree(
+                source,
+                destination,
+            )
+        else:
+            shutil.copy2(
+                source,
+                destination,
+            )
 
         print(
             f"Updated: {destination.relative_to(PATCH_DIR)}"
@@ -222,13 +236,13 @@ def sync_source(
     )
 
     if managed_files:
-        verify_managed_files(
+        verify_managed_paths(
             upstream_dir,
             managed_files,
             source_name,
         )
 
-        copy_managed_files(
+        copy_managed_paths(
             upstream_dir,
             destination_dir,
             managed_files,

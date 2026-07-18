@@ -13,6 +13,7 @@
       "destination": "drivers/input/joystick",
       "config": "JOYSTICK_XPAD",
       "upstream_source_dir": ".",
+      "local_dir": "xpad",
       "managed_files": [
         "xpad.c"
       ]
@@ -26,11 +27,17 @@
       "destination": "drivers/hid/hid-xpadneo",
       "config": "HID_XPADNEO_DFUSE",
       "upstream_source_dir": "hid-xpadneo",
+      "local_dir": "xpadneo",
       "preserve_files": [
         "Kconfig",
         "Makefile"
       ],
-      "managed_files": []
+      "managed_files": [
+        "src/xpadneo"
+      ],
+      "exclude_files": [
+        "src/xpadneo/AGENTS.md"
+      ]
     }
   ]
 }

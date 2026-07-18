@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+import shutil
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -227,11 +228,18 @@ class PatchesPage(QWidget):
 
         self.xbox_card = self._add_patch_card(
             name="Xbox Controller Support",
-            description="Kernel controller options and future Xbox driver patches.",
+            description=(
+                "Native Xbox controller drivers for Linux. "
+                "Includes XPAD for USB and XPADNEO for Bluetooth."
+            ),
             path=self.patches_root / "xbox",
             checked=True,
+            managed=True,
         )
         self.apply_xbox = self.xbox_card.checkbox
+        self.xbox_card.update_requested.connect(self._update_xbox)
+        self.xbox_card.validate_requested.connect(self._validate_xbox)
+        self.xbox_card.remove_requested.connect(self._remove_xbox_files)
 
         self.cachyos_card = self._add_patch_card(
             name="CachyOS Base Patch Set",
@@ -317,6 +325,8 @@ class PatchesPage(QWidget):
 
             if card is self.razer_card:
                 self._validate_razer(show_message=False)
+            elif card is self.xbox_card:
+                self._validate_xbox(show_message=False)
             else:
                 self._validate_basic_card(card, show_message=False)
 
@@ -412,6 +422,221 @@ class PatchesPage(QWidget):
             missing.append("sync_upstream.py")
 
         return not missing, missing
+
+    def _xbox_paths(self) -> tuple[Path, Path, Path]:
+        patch_dir = self.patches_root / "xbox"
+
+        return (
+            patch_dir / "metadata.json",
+            patch_dir / "driver",
+            patch_dir / "sync_upstream.py",
+        )
+
+    def _load_xbox_metadata(self) -> dict:
+        metadata_file, _, _ = self._xbox_paths()
+
+        if not metadata_file.is_file():
+            raise FileNotFoundError(
+                f"Xbox metadata is missing:\n{metadata_file}"
+            )
+
+        return json.loads(
+            metadata_file.read_text(encoding="utf-8")
+        )
+
+    def _xbox_validation(self) -> tuple[bool, list[str]]:
+        try:
+            metadata = self._load_xbox_metadata()
+        except (OSError, ValueError, TypeError) as error:
+            return False, [str(error)]
+
+        _, driver_dir, sync_script = self._xbox_paths()
+        missing: list[str] = []
+
+        for filename in metadata.get("preserve_files", []):
+            if not (driver_dir / filename).is_file():
+                missing.append(f"preserved: {filename}")
+
+        for filename in metadata.get("managed_files", []):
+            if not (driver_dir / filename).is_file():
+                missing.append(f"managed: {filename}")
+
+        if not sync_script.is_file():
+            missing.append("sync_upstream.py")
+
+        return not missing, missing
+
+    def _refresh_xbox_status(self) -> None:
+        valid, _missing = self._xbox_validation()
+
+        self.xbox_card.set_status(
+            "READY" if valid else "MISSING",
+            ready=valid,
+        )
+
+        self.xbox_card.selection_label.setText(
+            "ENABLED"
+            if self.xbox_card.is_checked()
+            else "NOT SELECTED"
+        )
+        self.xbox_card.selection_label.setProperty(
+            "enabled",
+            self.xbox_card.is_checked(),
+        )
+        self.xbox_card.selection_label.style().unpolish(
+            self.xbox_card.selection_label
+        )
+        self.xbox_card.selection_label.style().polish(
+            self.xbox_card.selection_label
+        )
+
+    def _update_xbox(self) -> None:
+        _, _, sync_script = self._xbox_paths()
+
+        if not sync_script.is_file():
+            QMessageBox.critical(
+                self,
+                "Xbox Update",
+                f"Sync script is missing:\n{sync_script}",
+            )
+            return
+
+        if self.xbox_card.btn_update is not None:
+            self.xbox_card.btn_update.setEnabled(False)
+
+        self.xbox_card.set_status("UPDATING", ready=False)
+
+        try:
+            result = subprocess.run(
+                ["python3", str(sync_script)],
+                cwd=str(sync_script.parent),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError as error:
+            QMessageBox.critical(
+                self,
+                "Xbox Update Failed",
+                str(error),
+            )
+            result = None
+        finally:
+            if self.xbox_card.btn_update is not None:
+                self.xbox_card.btn_update.setEnabled(True)
+
+        if result is None:
+            self._refresh_xbox_status()
+            return
+
+        if result.returncode != 0:
+            details = result.stderr.strip() or result.stdout.strip()
+
+            QMessageBox.critical(
+                self,
+                "Xbox Update Failed",
+                details or "The updater returned an error.",
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Xbox Updated",
+                result.stdout.strip()
+                or "Xbox controller driver files updated.",
+            )
+
+        self._refresh_xbox_status()
+
+    def _validate_xbox(
+        self,
+        show_message: bool = True,
+    ) -> bool:
+        valid, missing = self._xbox_validation()
+
+        self._refresh_xbox_status()
+
+        if show_message:
+            if valid:
+                metadata = self._load_xbox_metadata()
+
+                QMessageBox.information(
+                    self,
+                    "Xbox Validation",
+                    (
+                        "Xbox controller support is ready.\n\n"
+                        f"Managed files: "
+                        f"{len(metadata.get('managed_files', []))}\n"
+                        f"Preserved integration files: "
+                        f"{len(metadata.get('preserve_files', []))}"
+                    ),
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Xbox Validation",
+                    "Missing files:\n\n"
+                    + "\n".join(f"• {item}" for item in missing),
+                )
+
+        return valid
+
+    def _remove_xbox_files(self) -> None:
+        try:
+            metadata = self._load_xbox_metadata()
+        except (OSError, ValueError, TypeError) as error:
+            QMessageBox.critical(
+                self,
+                "Remove Xbox Files",
+                str(error),
+            )
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Remove Downloaded Xbox Files",
+            (
+                "Remove the downloaded XPAD and XPADNEO files?\n\n"
+                "Kconfig and Makefile integration files will be preserved."
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        if answer != QMessageBox.Yes:
+            return
+
+        _, driver_dir, _ = self._xbox_paths()
+        removed = 0
+
+        for source in metadata.get("sources", []):
+            local_dir = source.get("local_dir")
+            managed_paths = source.get("managed_files", [])
+
+            if not local_dir:
+                continue
+
+            source_dir = driver_dir / local_dir
+
+            for path_name in managed_paths:
+                path = source_dir / path_name
+
+                if path.is_dir():
+                    shutil.rmtree(path)
+                    removed += 1
+                elif path.is_file():
+                    path.unlink()
+                    removed += 1
+
+        self._refresh_xbox_status()
+
+        QMessageBox.information(
+            self,
+            "Xbox Files Removed",
+            (
+                f"Removed {removed} downloaded items.\n\n"
+                "Oppenheimer integration files were preserved."
+            ),
+        )
 
     def _refresh_razer_status(self) -> None:
         valid, _missing = self._razer_validation()
