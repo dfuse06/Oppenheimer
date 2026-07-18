@@ -106,6 +106,10 @@ def main() -> int:
         driver_src / "razer-dfuse-main.c",
         driver_src / "razerkbd_driver.c",
         driver_src / "razermouse_driver.c",
+        driver_src / "razeraccessory_driver.c",
+        driver_src / "razerkraken_driver.c",
+        driver_src / "razeraccessory_driver.c",
+        driver_src / "razerkraken_driver.c",
     ]
 
     for required_file in required_driver_files:

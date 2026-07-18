@@ -30,6 +30,7 @@ from ui.patches_page import PatchesPage
 from ui.placeholder_page import PlaceholderPage
 from ui.sidebar import Sidebar
 from ui.styles import APP_STYLE
+from ui.terminal_page import TerminalPage
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -78,6 +79,11 @@ ARCH_DEPENDENCIES = [
     "rust",
     "rust-bindgen",
     "rust-src",
+
+    # Embedded xterm.js terminal
+    "qt6-webengine",
+    "nodejs",
+    "npm",
 ]
 
 REQUIRED_TOOLS = [
@@ -97,6 +103,10 @@ REQUIRED_TOOLS = [
     "zstd",
     "rustc",
     "bindgen",
+
+    # Embedded terminal
+    "node",
+    "npm",
 ]
 
 
@@ -142,6 +152,7 @@ class Oppenheimer(BackgroundWidget):
 
         self.patches_page = PatchesPage(PROJECT_DIR / "patches")
         self.installed_kernels = InstalledKernelsPanel()
+        self.terminal_page = TerminalPage(self.source_dir())
         self.kernels_page = self._wrap_page(
             "INSTALLED KERNELS",
             "MANAGE. VERIFY. REMOVE.",
@@ -159,7 +170,7 @@ class Oppenheimer(BackgroundWidget):
             "drivers": PlaceholderPage("DRIVERS", "Kernel, DKMS, GPU, DisplayLink, Razer, and controller drivers will live here."),
             "services": PlaceholderPage("SERVICES", "Service detection and enable/disable controls will live here."),
             "log": self.build_page,
-            "terminal": PlaceholderPage("TERMINAL", "An embedded forge terminal will live here."),
+            "terminal": self.terminal_page,
             "settings": PlaceholderPage("SETTINGS", "Workspace, output, theme, and build defaults will live here."),
             "about": PlaceholderPage("ABOUT OPPENHEIMER", "DFUSE Kernel Forge\nUI 2.0 architecture"),
         }
@@ -298,6 +309,8 @@ class Oppenheimer(BackgroundWidget):
         self.left.workspace_label.setText(str(source))
         self.left.quick_kernel.setText(f"KERNEL  {self.left.kernel_source.currentText()}")
         self.left.quick_jobs.setText(f"CPU  {self.build_jobs()} threads")
+        if hasattr(self, "terminal_page"):
+            self.terminal_page.set_working_directory(source)
         self.status_panel.set_state("idle", "configuration changed", self.build_jobs(), False)
 
     def set_buttons_enabled(self, enabled: bool) -> None:

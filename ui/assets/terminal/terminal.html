@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oppenheimer Terminal</title>
+  <link rel="stylesheet" href="xterm.css">
+  <style>
+    html, body, #terminal { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { background: #07080c; }
+    .xterm { padding: 10px 12px; }
+    .xterm-viewport { scrollbar-color: #4d4f59 #0b0c11; }
+  </style>
+</head>
+<body>
+  <div id="terminal"></div>
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <script src="xterm.js"></script>
+  <script src="addon-fit.js"></script>
+  <script>
+    const terminal = new Terminal({
+      cursorBlink: true,
+      cursorStyle: 'bar',
+      allowTransparency: false,
+      convertEol: false,
+      scrollback: 20000,
+      fontFamily: 'Cascadia Code NF, JetBrains Mono, monospace',
+      fontSize: 15,
+      lineHeight: 1.16,
+      letterSpacing: 0,
+      theme: {
+        background: '#07080c',
+        foreground: '#e8e8ea',
+        cursor: '#d6b46c',
+        cursorAccent: '#07080c',
+        selectionBackground: '#6d4b8588',
+        black: '#16171d', brightBlack: '#5d606d',
+        red: '#df6b75', brightRed: '#ff7d88',
+        green: '#92c47d', brightGreen: '#a8dd90',
+        yellow: '#d6b46c', brightYellow: '#ebca82',
+        blue: '#749bd7', brightBlue: '#8ab1ed',
+        magenta: '#b78ad1', brightMagenta: '#cea1e8',
+        cyan: '#72b7bd', brightCyan: '#87cdd3',
+        white: '#d5d5d8', brightWhite: '#ffffff'
+      }
+    });
+
+    const fitAddon = new FitAddon.FitAddon();
+    terminal.loadAddon(fitAddon);
+    terminal.open(document.getElementById('terminal'));
+
+    window.oppenheimerWrite = (data) => terminal.write(data);
+    window.oppenheimerClear = () => terminal.clear();
+    window.oppenheimerFocus = () => terminal.focus();
+    window.oppenheimerCopy = async () => {
+      const selection = terminal.getSelection();
+      if (selection) await navigator.clipboard.writeText(selection);
+    };
+    window.oppenheimerPaste = async () => {
+      const text = await navigator.clipboard.readText();
+      if (text && window.terminalBridge) window.terminalBridge.write(text);
+    };
+
+    new QWebChannel(qt.webChannelTransport, (channel) => {
+      const bridge = channel.objects.terminalBridge;
+      window.terminalBridge = bridge;
+      terminal.onData((data) => bridge.write(data));
+
+      const resizeTerminal = () => {
+        fitAddon.fit();
+        bridge.resize(terminal.cols, terminal.rows);
+      };
+
+      window.addEventListener('resize', resizeTerminal);
+      new ResizeObserver(resizeTerminal).observe(document.getElementById('terminal'));
+      setTimeout(resizeTerminal, 0);
+      terminal.focus();
+    });
+  </script>
+</body>
+</html>

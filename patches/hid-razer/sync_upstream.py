@@ -12,11 +12,53 @@ PATCH_DIR = Path(__file__).resolve().parent
 METADATA_FILE = PATCH_DIR / "metadata.json"
 
 
+DFUSE_MODULE_LINES = {
+    "razerkbd_driver.c": "module_hid_driver(razer_kbd_driver);",
+    "razermouse_driver.c": "module_hid_driver(razer_mouse_driver);",
+    "razeraccessory_driver.c": "module_hid_driver(razer_accessory_driver);",
+    "razerkraken_driver.c": "module_hid_driver(razer_kraken_driver);",
+}
+
+
 def run(command: list[str]) -> None:
     subprocess.run(
         command,
         check=True,
     )
+
+
+def apply_dfuse_integration(driver_dir: Path) -> int:
+    patched = 0
+
+    for filename, module_line in DFUSE_MODULE_LINES.items():
+        path = driver_dir / filename
+
+        if not path.is_file():
+            print(f"DFUSE integration skipped: {filename} not downloaded")
+            continue
+
+        text = path.read_text(encoding="utf-8")
+
+        if module_line not in text:
+            raise RuntimeError(
+                f"Expected upstream module declaration not found in {filename}: "
+                f"{module_line}"
+            )
+
+        replacement = (
+            "/* DFUSE: driver registration is handled by "
+            "razer-dfuse-main.c */"
+        )
+
+        path.write_text(
+            text.replace(module_line, replacement, 1),
+            encoding="utf-8",
+        )
+
+        print(f"DFUSE integration applied: {filename}")
+        patched += 1
+
+    return patched
 
 
 def main() -> None:
@@ -75,12 +117,20 @@ def main() -> None:
                     f"Managed upstream file missing: {source}"
                 )
 
+            destination.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
             shutil.copy2(source, destination)
             print(f"Updated: {filename}")
             copied += 1
 
+        patched = apply_dfuse_integration(driver_dir)
+
         print()
         print(f"Razer upstream sync complete: {copied} files updated.")
+        print(f"DFUSE integration applied to {patched} driver files.")
         print("DFUSE integration files were preserved.")
 
 
