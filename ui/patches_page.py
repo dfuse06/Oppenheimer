@@ -34,6 +34,7 @@ class PatchCard(QFrame):
         path: Path,
         checked: bool,
         managed: bool = False,
+        features: list[str] | None = None,
     ) -> None:
         super().__init__()
 
@@ -42,8 +43,8 @@ class PatchCard(QFrame):
         self.managed = managed
 
         self.setObjectName("patchCard")
-        self.setMinimumHeight(160)
-        self.setMaximumHeight(190)
+        self.setMinimumHeight(160 if not features else 200)
+        self.setMaximumHeight(190 if not features else 230)
         self.setSizePolicy(
             QSizePolicy.Expanding,
             QSizePolicy.Fixed,
@@ -68,6 +69,12 @@ class PatchCard(QFrame):
         detail = QLabel(description)
         detail.setObjectName("mutedLabel")
         detail.setWordWrap(True)
+
+        feature_label: QLabel | None = None
+        if features:
+            feature_label = QLabel("  \u2022  ".join(f"\u2713 {feature}" for feature in features))
+            feature_label.setObjectName("patchFeatureList")
+            feature_label.setWordWrap(True)
 
         path_label = QLabel(str(path))
         path_label.setObjectName("pathLabel")
@@ -100,6 +107,8 @@ class PatchCard(QFrame):
 
         root.addLayout(header)
         root.addWidget(detail)
+        if feature_label is not None:
+            root.addWidget(feature_label)
         root.addStretch(1)
         root.addWidget(path_label)
         root.addLayout(buttons)
@@ -241,6 +250,26 @@ class PatchesPage(QWidget):
         self.xbox_card.validate_requested.connect(self._validate_xbox)
         self.xbox_card.remove_requested.connect(self._remove_xbox_files)
 
+        self.dualsense_card = self._add_patch_card(
+            name="DualSense Controller Support",
+            description=(
+                "Native Sony DualSense & DualSense Edge support using the "
+                "Linux hid-playstation driver."
+            ),
+            path=self.patches_root / "dualsense",
+            checked=True,
+            features=[
+                "Base Driver",
+                "Bluetooth",
+                "Gyroscope",
+                "Touchpad",
+                "LED Control",
+                "Haptics",
+                "Adaptive Triggers",
+            ],
+        )
+        self.apply_dualsense = self.dualsense_card.checkbox
+
         self.cachyos_card = self._add_patch_card(
             name="CachyOS Base Patch Set",
             description="CachyOS performance and desktop-oriented kernel patches.",
@@ -269,6 +298,7 @@ class PatchesPage(QWidget):
         path: Path,
         checked: bool,
         managed: bool = False,
+        features: list[str] | None = None,
     ) -> PatchCard:
         card = PatchCard(
             name=name,
@@ -276,6 +306,7 @@ class PatchesPage(QWidget):
             path=path,
             checked=checked,
             managed=managed,
+            features=features,
         )
 
         card.toggled.connect(self._selection_updated)
@@ -308,6 +339,7 @@ class PatchesPage(QWidget):
         mapping = {
             "Razer HID Driver": "hid-razer",
             "Xbox Controller Support": "xbox",
+            "DualSense Controller Support": "dualsense",
             "CachyOS Base Patch Set": "cachyos",
             "BORE Scheduler": "cachyos-bore",
         }

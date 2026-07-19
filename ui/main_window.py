@@ -46,7 +46,6 @@ RAZER_APPLY = PROJECT_DIR / "patches/hid-razer/apply.py"
 
 KERNEL_SOURCES = {
     "Linux Stable": {
-        "url": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
         "directory": "linux-stable",
         "config_directory": None,
         "source_type": "tarball",
@@ -168,6 +167,7 @@ class Oppenheimer(BackgroundWidget):
             "MANAGE. VERIFY. REMOVE.",
             self.installed_kernels,
         )
+        
         self.ai_page = PlaceholderPage(
             "OPPENHEIMER AI",
             "AI-assisted kernel configuration and build guidance will live here.",
@@ -263,7 +263,7 @@ class Oppenheimer(BackgroundWidget):
         return WORKSPACE_DIR / directory_name
 
     def kernel_repository(self) -> str:
-        return str(self.selected_kernel()["url"])
+        return str(self.selected_kernel().get("url", ""))
 
     def kernel_source_type(self) -> str:
         source_type = self.selected_kernel().get("source_type")
@@ -329,6 +329,9 @@ class Oppenheimer(BackgroundWidget):
 
     def apply_xbox(self) -> bool:
         return self.patches_page.apply_xbox.isChecked()
+
+    def apply_dualsense(self) -> bool:
+        return self.patches_page.apply_dualsense.isChecked()
 
     def connect_signals(self) -> None:
         self.sidebar.page_requested.connect(self.show_page)
@@ -533,6 +536,7 @@ class Oppenheimer(BackgroundWidget):
             RAZER_APPLY,
             apply_xbox=self.apply_xbox(),
             xbox_apply=None,
+            apply_dualsense=self.apply_dualsense(),
         )
         self.run_commands(commands, "prepare")
 
@@ -552,6 +556,7 @@ class Oppenheimer(BackgroundWidget):
             RAZER_APPLY,
             apply_xbox=self.apply_xbox(),
             xbox_apply=None,
+            apply_dualsense=self.apply_dualsense(),
         )
         self.run_commands(commands, "build")
 
@@ -584,9 +589,15 @@ class Oppenheimer(BackgroundWidget):
             RAZER_APPLY,
             apply_xbox=self.apply_xbox(),
             xbox_apply=None,
+            apply_dualsense=self.apply_dualsense(),
         )
         commands += verification_commands(source, self.apply_razer())
         if mode == "Clean Build":
             commands.append(f"cd {quote(source)} && make clean")
-        commands += compile_commands(source, self.build_jobs(), apply_xbox=self.apply_xbox())
+        commands += compile_commands(
+            source,
+            self.build_jobs(),
+            apply_xbox=self.apply_xbox(),
+            apply_dualsense=self.apply_dualsense(),
+        )
         self.run_commands(commands, "build")

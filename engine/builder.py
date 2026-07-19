@@ -29,6 +29,10 @@ XBOX_XPAD_OPTIONS = [
     "JOYSTICK_XPAD_LEDS",
 ]
 
+DUALSENSE_CONTROLLER_OPTIONS = [
+    "LEDS_CLASS_MULTICOLOR",
+]
+
 
 def quote(value: object) -> str:
     """Return a safely shell-quoted value."""
@@ -188,6 +192,87 @@ def xbox_verification_commands(
     ]
 
 
+def dualsense_config_commands(
+    source_dir: Path,
+    apply_dualsense: bool,
+) -> list[str]:
+    """Configure Sony DualSense / DualSense Edge controller support."""
+
+    if not apply_dualsense:
+        return [
+            f"cd {quote(source_dir)} && "
+            "scripts/config --disable HID_PLAYSTATION"
+        ]
+
+    commands: list[str] = [
+        "echo 'Configuring DualSense controller support...'"
+    ]
+
+    for option in DUALSENSE_CONTROLLER_OPTIONS:
+        commands.append(
+            f"cd {quote(source_dir)} && "
+            f"scripts/config --enable {quote(option)}"
+        )
+
+    # Base driver (USB + Bluetooth transport, touchpad, gyroscope and
+    # multicolor LED support all live inside the single in-tree module).
+    commands.append(
+        f"cd {quote(source_dir)} && "
+        "scripts/config --module HID_PLAYSTATION"
+    )
+
+    # Haptics and adaptive trigger effects.
+    commands.append(
+        f"cd {quote(source_dir)} && "
+        "scripts/config --enable PLAYSTATION_FF"
+    )
+
+    return commands
+
+
+def dualsense_verification_commands(
+    source_dir: Path,
+    apply_dualsense: bool,
+) -> list[str]:
+    """Verify DualSense controller configuration before compilation."""
+
+    if not apply_dualsense:
+        return [
+            (
+                f"cd {quote(source_dir)} && "
+                "if grep -q '^CONFIG_HID_PLAYSTATION=' .config; then "
+                "echo 'WARNING: HID_PLAYSTATION remains enabled.'; "
+                "else "
+                "echo 'DualSense support is disabled.'; "
+                "fi"
+            )
+        ]
+
+    return [
+        (
+            f"cd {quote(source_dir)} && "
+            "grep -q '^CONFIG_HID_PLAYSTATION=m' .config || "
+            "(echo 'ERROR: CONFIG_HID_PLAYSTATION is not configured "
+            "as a module.'; exit 1)"
+        ),
+        (
+            f"cd {quote(source_dir)} && "
+            "grep -q '^CONFIG_PLAYSTATION_FF=y' .config || "
+            "(echo 'ERROR: DualSense haptics/adaptive trigger support "
+            "is not enabled.'; exit 1)"
+        ),
+        (
+            f"cd {quote(source_dir)} && "
+            "grep -q '^CONFIG_LEDS_CLASS_MULTICOLOR=y' .config || "
+            "(echo 'ERROR: LEDS_CLASS_MULTICOLOR is not enabled.'; "
+            "exit 1)"
+        ),
+        (
+            "echo 'DualSense controller configuration verified.'"
+        ),
+    ]
+
+
 def prepare_commands(
     source_dir: Path,
     config: Path,
@@ -196,6 +281,7 @@ def prepare_commands(
     razer_apply: Path,
     apply_xbox: bool = False,
     xbox_apply: Path | None = None,
+    apply_dualsense: bool = False,
 ) -> list[str]:
     """Prepare the kernel configuration and apply optional patches."""
 
@@ -258,6 +344,11 @@ def prepare_commands(
         xbox_apply=xbox_apply,
     )
 
+    commands += dualsense_config_commands(
+        source_dir=source_dir,
+        apply_dualsense=apply_dualsense,
+    )
+
     commands += [
         (
             f"cd {quote(source_dir)} && "
@@ -273,7 +364,8 @@ def prepare_commands(
             "grep -E "
             "'HID_RAZER|JOYSTICK_XPAD|INPUT_JOYDEV|"
             "HIDRAW|LOCALVERSION|DEFAULT_HOSTNAME|"
-            "FAT_FS|VFAT_FS|EXT4_FS|EFI' "
+            "FAT_FS|VFAT_FS|EXT4_FS|EFI|HID_PLAYSTATION|"
+            "PLAYSTATION_FF' "
             ".config || true"
         ),
     ]
@@ -285,6 +377,7 @@ def compile_commands(
     source_dir: Path,
     jobs: int,
     apply_xbox: bool = False,
+    apply_dualsense: bool = False,
 ) -> list[str]:
     """Compile the kernel and verify its primary build artifacts."""
 
@@ -320,6 +413,21 @@ def compile_commands(
             ),
         ]
 
+    if apply_dualsense:
+        commands += [
+            (
+                f"test -s "
+                f"{quote(source_dir / 'drivers/hid/hid-playstation.ko')} "
+                "|| "
+                "(echo 'ERROR: DualSense hid-playstation module was not "
+                "built.'; exit 1)"
+            ),
+            (
+                f"echo 'DualSense driver built successfully: "
+                f"{quote(source_dir / 'drivers/hid/hid-playstation.ko')}'"
+            ),
+        ]
+
     commands.append(
         f"cd {quote(source_dir)} && "
         "echo 'Built kernel release:' && make -s kernelrelease"
@@ -338,6 +446,7 @@ def build_commands(
     razer_apply: Path,
     apply_xbox: bool = False,
     xbox_apply: Path | None = None,
+    apply_dualsense: bool = False,
 ) -> list[str]:
     """Generate the full kernel build command sequence."""
 
@@ -356,6 +465,7 @@ def build_commands(
             razer_apply=razer_apply,
             apply_xbox=apply_xbox,
             xbox_apply=xbox_apply,
+            apply_dualsense=apply_dualsense,
         )
 
         commands += verification_commands(
@@ -366,6 +476,11 @@ def build_commands(
         commands += xbox_verification_commands(
             source_dir,
             apply_xbox,
+        )
+
+        commands += dualsense_verification_commands(
+            source_dir,
+            apply_dualsense,
         )
 
     else:
@@ -379,6 +494,11 @@ def build_commands(
             apply_xbox,
         )
 
+        commands += dualsense_verification_commands(
+            source_dir,
+            apply_dualsense,
+        )
+
         if mode == "Clean Build":
             commands.append(
                 f"cd {quote(source_dir)} && make clean"
@@ -388,6 +508,7 @@ def build_commands(
         source_dir=source_dir,
         jobs=jobs,
         apply_xbox=apply_xbox,
+        apply_dualsense=apply_dualsense,
     )
 
     return commands

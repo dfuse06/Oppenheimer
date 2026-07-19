@@ -1,0 +1,16 @@
+{
+    "name": "DFUSE DualSense Controller Support",
+    "version": "1.0",
+    "description": "Native Sony DualSense & DualSense Edge support using the in-tree Linux hid-playstation driver (USB + Bluetooth, touchpad, gyroscope, multicolor LEDs, haptics and adaptive triggers).",
+    "config": "HID_PLAYSTATION",
+    "extra_config": "PLAYSTATION_FF",
+    "features": [
+        "Base Driver",
+        "Bluetooth",
+        "Gyroscope",
+        "Touchpad",
+        "LED Control",
+        "Haptics",
+        "Adaptive Triggers"
+    ]
+}

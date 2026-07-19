@@ -299,6 +299,12 @@ QLabel#patchLibrarySummary {
     font-weight: 700;
 }
 
+QLabel#patchFeatureList {
+    color: #46ff83;
+    font-size: 10px;
+    font-weight: 600;
+}
+
 QLabel#patchStatus {
     color: #ff5c66;
     font-size: 10px;
