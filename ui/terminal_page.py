@@ -174,6 +174,9 @@ class TerminalWidget(QWidget):
         self.web_view.setAutoFillBackground(False)
         self.web_view.setStyleSheet("background: transparent; border: none;")
         self.web_view.page().setBackgroundColor(QColor(0, 0, 0, 0))
+        self._pending_js: list[str] = []
+        self._page_ready = False
+        self.web_view.loadFinished.connect(self._on_load_finished)
         layout.addWidget(self.web_view)
 
         self.bridge = TerminalBridge(working_directory, self)
@@ -196,23 +199,39 @@ class TerminalWidget(QWidget):
         self.bridge.interrupt()
 
     def clear(self) -> None:
-        self.web_view.page().runJavaScript("window.oppenheimerClear();")
+        self._run_terminal_js("window.oppenheimerClear();")
 
     def copy(self) -> None:
-        self.web_view.page().runJavaScript("window.oppenheimerCopy();")
+        self._run_terminal_js("window.oppenheimerCopy();")
 
     def paste(self) -> None:
-        self.web_view.page().runJavaScript("window.oppenheimerPaste();")
+        self._run_terminal_js("window.oppenheimerPaste();")
 
     def focus_terminal(self) -> None:
         self.web_view.setFocus(Qt.OtherFocusReason)
-        self.web_view.page().runJavaScript("window.oppenheimerFocus();")
+        self._run_terminal_js("window.oppenheimerFocus();")
 
     @Slot(str)
     def _write_to_terminal(self, text: str) -> None:
-        self.web_view.page().runJavaScript(
-            "window.oppenheimerWrite(" + json.dumps(text) + ");"
-        )
+        self._run_terminal_js("window.oppenheimerWrite(" + json.dumps(text) + ");")
+
+    def _run_terminal_js(self, script: str) -> None:
+        if self.web_view.page() is None:
+            return
+        if not self._page_ready:
+            self._pending_js.append(script)
+            return
+        self.web_view.page().runJavaScript(script)
+
+    @Slot(bool)
+    def _on_load_finished(self, ok: bool) -> None:
+        self._page_ready = ok
+        if not ok:
+            return
+        pending_scripts = self._pending_js
+        self._pending_js = []
+        for script in pending_scripts:
+            self._run_terminal_js(script)
 
     @Slot(int)
     def _process_exited(self, code: int) -> None:

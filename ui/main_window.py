@@ -31,6 +31,7 @@ from ui.placeholder_page import PlaceholderPage
 from ui.sidebar import Sidebar
 from ui.styles import APP_STYLE
 from ui.terminal_page import TerminalPage
+from ui.tweaks_page import TweaksPage
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -45,11 +46,14 @@ KERNEL_SOURCES = {
         "url": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
         "directory": "linux-stable",
         "config_directory": None,
+        "source_type": "tarball",
+        "archive_url_template": "https://cdn.kernel.org/pub/linux/kernel/v{major}.x/linux-{version}.tar.xz",
     },
     "Linux Zen": {
         "url": "https://github.com/zen-kernel/zen-kernel.git",
         "directory": "linux-zen",
         "config_directory": None,
+        "source_type": "git",
     },
 }
 
@@ -64,6 +68,7 @@ CONFIG_FILES = {
 ARCH_DEPENDENCIES = [
     "base-devel",
     "git",
+    "curl",
     "bc",
     "flex",
     "bison",
@@ -88,6 +93,7 @@ ARCH_DEPENDENCIES = [
 
 REQUIRED_TOOLS = [
     "git",
+    "curl",
     "make",
     "gcc",
     "bc",
@@ -153,6 +159,7 @@ class Oppenheimer(BackgroundWidget):
         self.patches_page = PatchesPage(PROJECT_DIR / "patches")
         self.installed_kernels = InstalledKernelsPanel()
         self.terminal_page = TerminalPage(self.source_dir())
+        self.tweaks_page = TweaksPage()
         self.kernels_page = self._wrap_page(
             "INSTALLED KERNELS",
             "MANAGE. VERIFY. REMOVE.",
@@ -166,7 +173,7 @@ class Oppenheimer(BackgroundWidget):
             "patches": self.patches_page,
             "kernels": self.kernels_page,
             "boot": PlaceholderPage("BOOT MANAGER", "Boot-entry management is staged for the next engine pass."),
-            "tweaks": PlaceholderPage("SYSTEM TWEAKS", "CPU governors, zram, schedulers, and sysctl profiles will live here."),
+            "tweaks": self.tweaks_page,
             "drivers": PlaceholderPage("DRIVERS", "Kernel, DKMS, GPU, DisplayLink, Razer, and controller drivers will live here."),
             "services": PlaceholderPage("SERVICES", "Service detection and enable/disable controls will live here."),
             "log": self.build_page,
@@ -222,11 +229,57 @@ class Oppenheimer(BackgroundWidget):
         return KERNEL_SOURCES[selected_name]
 
     def source_dir(self) -> Path:
-        directory = self.selected_kernel()["directory"]
-        return WORKSPACE_DIR / str(directory)
+        directory = self.selected_kernel().get("directory", "kernel")
+        directory_name = str(directory)
+        if self.kernel_source_type() == "tarball":
+            version = self.kernel_version()
+            if version:
+                safe_version = version.replace(".", "-").replace("+", "-")
+                directory_name = f"{directory_name}-{safe_version}"
+        return WORKSPACE_DIR / directory_name
 
     def kernel_repository(self) -> str:
         return str(self.selected_kernel()["url"])
+
+    def kernel_source_type(self) -> str:
+        source_type = self.selected_kernel().get("source_type")
+        if source_type:
+            return str(source_type).lower()
+        return str(self.left.source_type.currentText()).lower()
+
+    def kernel_version(self) -> str:
+        return self.left.kernel_version.currentText().strip()
+
+    def kernel_archive_url(self) -> str | None:
+        if self.kernel_source_type() != "tarball":
+            return None
+
+        version = self.kernel_version()
+        if not version:
+            return None
+
+        template = self.selected_kernel().get("archive_url_template")
+        if not template:
+            return None
+
+        major = version.split(".", 1)[0]
+        return template.format(version=version, major=major)
+
+    def recommended_config_name(self) -> str:
+        kernel_name = self.left.kernel_source.currentText().lower()
+        if "zen" in kernel_name:
+            return "Zen 7.1.3"
+
+        version = self.kernel_version()
+        if version.startswith("7.") or version.startswith("7"):
+            return "DFUSE 7.2"
+        if version.startswith("6.") or version.startswith("6"):
+            return "DFUSE Legacy"
+        if version.startswith("5.") or version.startswith("5"):
+            return "DFUSE Slim"
+        if version.startswith("next") or version.startswith("rc"):
+            return "DFUSE 7.2"
+        return "DFUSE 7.2"
 
     def build_jobs(self) -> int:
         return self.left.jobs.value()
@@ -236,6 +289,8 @@ class Oppenheimer(BackgroundWidget):
 
     def config_file(self) -> Path:
         selected_config = self.left.config_choice.currentText()
+        if selected_config == "Auto (recommended)":
+            selected_config = self.recommended_config_name()
         if selected_config not in CONFIG_FILES:
             raise ValueError(f"Unknown kernel configuration: {selected_config}")
         filename = CONFIG_FILES[selected_config]
@@ -309,6 +364,13 @@ class Oppenheimer(BackgroundWidget):
         self.left.workspace_label.setText(str(source))
         self.left.quick_kernel.setText(f"KERNEL  {self.left.kernel_source.currentText()}")
         self.left.quick_jobs.setText(f"CPU  {self.build_jobs()} threads")
+        if self.left.config_choice.currentText() == "Auto (recommended)":
+            self.left.config_choice.setCurrentText(self.recommended_config_name())
+        source_type = self.selected_kernel().get("source_type", "git")
+        self.left.source_type.blockSignals(True)
+        self.left.source_type.setCurrentText("Tarball" if source_type == "tarball" else "Git")
+        self.left.source_type.blockSignals(False)
+        self.left.source_type.setEnabled(False)
         if hasattr(self, "terminal_page"):
             self.terminal_page.set_working_directory(source)
         self.status_panel.set_state("idle", "configuration changed", self.build_jobs(), False)
@@ -390,7 +452,13 @@ class Oppenheimer(BackgroundWidget):
 
     def download_kernel(self) -> None:
         self.run_commands(
-            download_commands(WORKSPACE_DIR, self.source_dir(), self.kernel_repository()),
+            download_commands(
+                WORKSPACE_DIR,
+                self.source_dir(),
+                self.kernel_repository(),
+                source_type=self.kernel_source_type(),
+                archive_url=self.kernel_archive_url(),
+            ),
             "download",
         )
 
@@ -436,7 +504,13 @@ class Oppenheimer(BackgroundWidget):
         self.build_succeeded = False
         source = self.source_dir()
         mode = self.build_mode()
-        commands = download_commands(WORKSPACE_DIR, source, self.kernel_repository())
+        commands = download_commands(
+            WORKSPACE_DIR,
+            source,
+            self.kernel_repository(),
+            source_type=self.kernel_source_type(),
+            archive_url=self.kernel_archive_url(),
+        )
         if mode == "Deep Clean (mrproper)":
             commands.append(
                 f"if [ -f {quote(source / 'Makefile')} ]; then cd {quote(source)} && make mrproper; fi"

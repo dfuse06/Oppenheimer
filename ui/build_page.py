@@ -85,6 +85,28 @@ class BuildPage(QWidget):
         self.kernel_source = QComboBox()
         self.kernel_source.addItems(kernel_sources)
 
+        self.source_type = QComboBox()
+        self.source_type.addItems(["Git", "Tarball"])
+        self.source_type.setToolTip("Selected automatically for official vs custom kernels")
+
+        self.kernel_version = QComboBox()
+        self.kernel_version.setEditable(True)
+        self.kernel_version.addItems([
+            "7.2-rc3",
+            "7.1.4",
+            "7.0.14",
+            "6.18.39",
+            "6.12.96",
+            "6.6.144",
+            "6.1.177",
+            "5.15.211",
+            "5.10.260",
+            "next-20260717",
+        ])
+        self.kernel_version.setCurrentText("6.6.144")
+        if self.kernel_version.lineEdit() is not None:
+            self.kernel_version.lineEdit().setPlaceholderText("Enter kernel release")
+
         self.workspace_label = QLabel()
         self.workspace_label.setWordWrap(True)
         self.workspace_label.setObjectName("mutedLabel")
@@ -98,6 +120,7 @@ class BuildPage(QWidget):
         self.config_choice = QComboBox()
         self.config_choice.addItems(
             [
+                "Auto (recommended)",
                 "DFUSE 7.2",
                 "Zen 7.1.3",
                 "Manjaro 7.2 (Golden)",
@@ -123,7 +146,7 @@ class BuildPage(QWidget):
         grid.addWidget(self.config_choice, 1, 1)
         grid.addWidget(self.local_version, 1, 2)
 
-        grid.addWidget(QLabel("Build Jobs"), 2, 0)
+        grid.addWidget(QLabel("Source Type"), 2, 0)
         grid.addWidget(
             QLabel("Build Preparation"),
             2,
@@ -135,7 +158,7 @@ class BuildPage(QWidget):
             2,
         )
 
-        grid.addWidget(self.jobs, 3, 0)
+        grid.addWidget(self.source_type, 3, 0)
         grid.addWidget(
             self.build_preparation,
             3,
@@ -146,6 +169,16 @@ class BuildPage(QWidget):
             3,
             2,
         )
+
+        grid.addWidget(QLabel("Kernel Version"), 4, 0)
+        grid.addWidget(QLabel(""), 4, 1)
+        grid.addWidget(QLabel(""), 4, 2)
+        grid.addWidget(self.kernel_version, 5, 0)
+
+        grid.addWidget(QLabel("Build Jobs"), 6, 0)
+        grid.addWidget(QLabel(""), 6, 1)
+        grid.addWidget(QLabel(""), 6, 2)
+        grid.addWidget(self.jobs, 7, 0)
 
         config_layout.addLayout(grid)
         main_column.addWidget(config_card)

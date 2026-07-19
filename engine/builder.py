@@ -39,20 +39,45 @@ def download_commands(
     workspace_dir: Path,
     source_dir: Path,
     repository: str,
+    source_type: str = "git",
+    archive_url: str | None = None,
 ) -> list[str]:
     """Create commands for downloading the kernel source tree."""
 
-    return [
-        f"mkdir -p {quote(workspace_dir)}",
-        (
-            f"if [ -f {quote(source_dir / 'Makefile')} ]; then "
-            "echo 'Kernel workspace already exists.'; "
-            "else "
-            f"git clone --depth=1 {quote(repository)} {quote(source_dir)} && "
-            f"rm -rf {quote(source_dir / '.git')}; "
-            "fi"
-        ),
-    ]
+    commands = [f"mkdir -p {quote(workspace_dir)}"]
+
+    if source_type == "tarball" and archive_url:
+        archive_name = Path(archive_url).name
+        archive_path = workspace_dir / archive_name
+        extracted_dir = workspace_dir / archive_name.replace('.tar.xz', '').replace('.tar.gz', '')
+        commands += [
+            (
+                f"if [ -f {quote(source_dir / 'Makefile')} ]; then "
+                "echo 'Kernel workspace already exists.'; "
+                "else "
+                f"rm -f {quote(archive_path)} && "
+                f"curl -L --fail {quote(archive_url)} -o {quote(archive_path)} && "
+                f"rm -rf {quote(source_dir)} && "
+                f"mkdir -p {quote(source_dir)} && "
+                f"tar -xf {quote(archive_path)} -C {quote(workspace_dir)} && "
+                f"cp -a {quote(extracted_dir)}/. {quote(source_dir)} && "
+                f"rm -rf {quote(extracted_dir)} {quote(archive_path)}; "
+                "fi"
+            ),
+        ]
+    else:
+        commands += [
+            (
+                f"if [ -f {quote(source_dir / 'Makefile')} ]; then "
+                "echo 'Kernel workspace already exists.'; "
+                "else "
+                f"git clone --depth=1 {quote(repository)} {quote(source_dir)} && "
+                f"rm -rf {quote(source_dir / '.git')}; "
+                "fi"
+            ),
+        ]
+
+    return commands
 
 
 def xbox_config_commands(
