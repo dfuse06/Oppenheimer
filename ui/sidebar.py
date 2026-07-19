@@ -88,7 +88,8 @@ class Sidebar(QFrame):
             (
                 "TOOLS",
                 [
-                   ("terminal", ">_  Terminal"),
+                    ("terminal", ">_  Terminal"),
+                    ("ai", "⚡ Oppenheimer AI"),
                 ],
             ),
             (

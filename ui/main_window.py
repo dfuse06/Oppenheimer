@@ -20,6 +20,9 @@ from engine.builder import (
     prepare_commands,
 )
 from engine.installer import install_commands
+from engine.tweaks import TweakValidationError
+from engine.tweaks import permanent_commands as tweak_permanent_commands
+from engine.tweaks import session_commands as tweak_session_commands
 from engine.uninstaller import uninstall_kernel_commands
 from engine.verifier import verification_commands
 from engine.worker import Worker
@@ -165,6 +168,11 @@ class Oppenheimer(BackgroundWidget):
             "MANAGE. VERIFY. REMOVE.",
             self.installed_kernels,
         )
+        self.ai_page = PlaceholderPage(
+            "OPPENHEIMER AI",
+            "AI-assisted kernel configuration and build guidance will live here.",
+        )
+
         self.page_map: dict[str, QWidget] = {
             "configure": self.build_page,
             "download": self.build_page,
@@ -172,14 +180,30 @@ class Oppenheimer(BackgroundWidget):
             "install": self.build_page,
             "patches": self.patches_page,
             "kernels": self.kernels_page,
-            "boot": PlaceholderPage("BOOT MANAGER", "Boot-entry management is staged for the next engine pass."),
+            "boot": PlaceholderPage(
+                "BOOT MANAGER",
+                "Boot-entry management is staged for the next engine pass.",
+            ),
             "tweaks": self.tweaks_page,
-            "drivers": PlaceholderPage("DRIVERS", "Kernel, DKMS, GPU, DisplayLink, Razer, and controller drivers will live here."),
-            "services": PlaceholderPage("SERVICES", "Service detection and enable/disable controls will live here."),
+            "drivers": PlaceholderPage(
+                "DRIVERS",
+                "Kernel, DKMS, GPU, DisplayLink, Razer, and controller drivers will live here.",
+            ),
+            "services": PlaceholderPage(
+                "SERVICES",
+                "Service detection and enable/disable controls will live here.",
+            ),
             "log": self.build_page,
             "terminal": self.terminal_page,
-            "settings": PlaceholderPage("SETTINGS", "Workspace, output, theme, and build defaults will live here."),
-            "about": PlaceholderPage("ABOUT OPPENHEIMER", "DFUSE Kernel Forge\nUI 2.0 architecture"),
+            "ai": self.ai_page,
+            "settings": PlaceholderPage(
+                "SETTINGS",
+                "Workspace, output, theme, and build defaults will live here.",
+            ),
+            "about": PlaceholderPage(
+                "ABOUT OPPENHEIMER",
+                "DFUSE Kernel Forge\nUI 2.0 architecture",
+            ),
         }
 
         added: set[int] = set()
@@ -321,6 +345,7 @@ class Oppenheimer(BackgroundWidget):
         self.left.btn_install.clicked.connect(self.install_kernel)
         self.left.btn_all.clicked.connect(self.prepare_and_build)
         self.installed_kernels.remove_requested.connect(self.uninstall_kernel)
+        self.tweaks_page.apply_requested.connect(self.apply_tweaks)
 
     def patch_selection_changed(self) -> None:
         names = self.patches_page.enabled_names()
@@ -329,6 +354,36 @@ class Oppenheimer(BackgroundWidget):
         self.append_output(
             "\nSelected patches: " + (", ".join(names) if names else "none") + "\n"
         )
+
+    def apply_tweaks(self, state: dict, permanent: bool) -> None:
+        if permanent:
+            answer = QMessageBox.question(
+                self,
+                "Apply Tweaks Permanently",
+                (
+                    "This installs a systemd unit that re-applies these tweaks "
+                    "on every boot.\n\nContinue?"
+                ),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if answer != QMessageBox.Yes:
+                self.tweaks_page.on_apply_result(False, permanent)
+                return
+
+        try:
+            commands = (
+                tweak_permanent_commands(state)
+                if permanent
+                else tweak_session_commands(state)
+            )
+        except TweakValidationError as error:
+            QMessageBox.critical(self, "Invalid Tweak Settings", str(error))
+            self.tweaks_page.on_apply_result(False, permanent)
+            return
+
+        action = "tweaks-permanent" if permanent else "tweaks-session"
+        self.run_commands(commands, action)
 
     def uninstall_kernel(self, kernel_version: str) -> None:
         if kernel_version == platform.release():
@@ -412,12 +467,18 @@ class Oppenheimer(BackgroundWidget):
             ("install", False): "\n✗ INSTALLATION FAILED\n",
             ("uninstall", True): "\n✓ KERNEL UNINSTALLED\n",
             ("uninstall", False): "\n✗ KERNEL UNINSTALL FAILED\n",
+            ("tweaks-session", True): "\n✓ TWEAKS APPLIED FOR THIS SESSION\n",
+            ("tweaks-session", False): "\n✗ FAILED TO APPLY SESSION TWEAKS\n",
+            ("tweaks-permanent", True): "\n✓ TWEAKS APPLIED AND PERSISTED ACROSS REBOOTS\n",
+            ("tweaks-permanent", False): "\n✗ FAILED TO APPLY PERMANENT TWEAKS\n",
         }
         message = messages.get((action, success))
         if message:
             self.output.append(message)
         if action == "uninstall":
             self.installed_kernels.refresh()
+        if action in ("tweaks-session", "tweaks-permanent"):
+            self.tweaks_page.on_apply_result(success, action == "tweaks-permanent")
         state = "complete" if success else "failed"
         self.status_panel.set_state(state, action, self.build_jobs(), self.build_succeeded)
         self.status_bar.showMessage(

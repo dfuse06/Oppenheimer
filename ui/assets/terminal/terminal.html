@@ -55,7 +55,7 @@
       lineHeight: 1.16,
       letterSpacing: 0,
       theme: {
-        background: 'rgba(0, 0, 0, 0)',
+        background: '#00000000',
         foreground: '#d8dee9',
         cursor: '#d6b46c',
         cursorAccent: '#07080c',
@@ -78,6 +78,13 @@
     window.oppenheimerWrite = (data) => terminal.write(data);
     window.oppenheimerClear = () => terminal.clear();
     window.oppenheimerFocus = () => terminal.focus();
+    window.oppenheimerSetTheme = (themeJson) => {
+      try {
+        terminal.options.theme = JSON.parse(themeJson);
+      } catch (error) {
+        console.error('Failed to apply terminal theme', error);
+      }
+    };
     window.oppenheimerCopy = async () => {
       const selection = terminal.getSelection();
       if (selection) await navigator.clipboard.writeText(selection);
@@ -104,5 +111,3 @@
     });
   </script>
 </body>
-
-</html>

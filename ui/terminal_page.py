@@ -16,6 +16,7 @@ from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -23,6 +24,13 @@ from PySide6.QtWidgets import (
     QToolButton,
     QVBoxLayout,
     QWidget,
+)
+
+from ui.terminal_themes import (
+    THEME_NAMES,
+    get_theme,
+    load_theme_name,
+    save_theme_name,
 )
 
 
@@ -162,9 +170,15 @@ class TerminalBridge(QObject):
 class TerminalWidget(QWidget):
     title_changed = Signal(str)
 
-    def __init__(self, working_directory: Path, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        working_directory: Path,
+        parent: QWidget | None = None,
+        theme_name: str | None = None,
+    ) -> None:
         super().__init__(parent)
         self.assets_dir = Path(__file__).resolve().parent / "assets" / "terminal"
+        self._theme_name = theme_name or load_theme_name()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -191,6 +205,11 @@ class TerminalWidget(QWidget):
 
     def set_working_directory(self, directory: Path) -> None:
         self.bridge.change_directory(str(directory))
+
+    def set_theme(self, theme_name: str) -> None:
+        self._theme_name = theme_name
+        theme = get_theme(theme_name)
+        self._run_terminal_js("window.oppenheimerSetTheme(" + json.dumps(json.dumps(theme)) + ");")
 
     def restart(self) -> None:
         self.bridge.restart()
@@ -228,6 +247,7 @@ class TerminalWidget(QWidget):
         self._page_ready = ok
         if not ok:
             return
+        self.set_theme(self._theme_name)
         pending_scripts = self._pending_js
         self._pending_js = []
         for script in pending_scripts:
@@ -267,6 +287,15 @@ class TerminalPage(QWidget):
         self.cwd_label = QLabel(str(self.working_directory))
         self.cwd_label.setObjectName("terminalCwd")
         toolbar_layout.addWidget(self.cwd_label)
+
+        self._current_theme = load_theme_name()
+        self.theme_combo = QComboBox()
+        self.theme_combo.setObjectName("terminalThemeCombo")
+        self.theme_combo.setToolTip("Terminal Color Theme")
+        self.theme_combo.addItems(THEME_NAMES)
+        self.theme_combo.setCurrentText(self._current_theme)
+        self.theme_combo.currentTextChanged.connect(self._on_theme_changed)
+        toolbar_layout.addWidget(self.theme_combo)
 
         self.new_button = self._tool_button("＋", "New Terminal")
         self.restart_button = self._tool_button("↻", "Restart Terminal")
@@ -329,12 +358,20 @@ class TerminalPage(QWidget):
 
     def new_terminal(self) -> None:
         self._terminal_number += 1
-        terminal = TerminalWidget(self.working_directory, self)
+        terminal = TerminalWidget(self.working_directory, self, theme_name=self._current_theme)
         label = f"bash {self._terminal_number}"
         index = self.tabs.addTab(terminal, label)
         terminal.title_changed.connect(lambda title, item=terminal: self._rename_tab(item, title))
         self.tabs.setCurrentIndex(index)
         terminal.focus_terminal()
+
+    def _on_theme_changed(self, theme_name: str) -> None:
+        self._current_theme = theme_name
+        save_theme_name(theme_name)
+        for index in range(self.tabs.count()):
+            widget = self.tabs.widget(index)
+            if isinstance(widget, TerminalWidget):
+                widget.set_theme(theme_name)
 
     def close_terminal(self, index: int) -> None:
         if index < 0:
