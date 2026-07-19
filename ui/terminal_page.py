@@ -49,7 +49,8 @@ class TerminalBridge(QObject):
 
     def start_shell(self) -> None:
         self.close_shell()
-        self.working_directory.mkdir(parents=True, exist_ok=True)
+        if not self.working_directory.is_dir():
+            self.working_directory = self._nearest_existing_directory(self.working_directory)
 
         master_fd, slave_fd = pty.openpty()
         flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
@@ -105,8 +106,7 @@ class TerminalBridge(QObject):
     def change_directory(self, path: str) -> None:
         directory = Path(path).expanduser().resolve()
         if not directory.is_dir():
-            self.output_ready.emit(f"\r\nDirectory does not exist: {directory}\r\n")
-            return
+            directory = self._nearest_existing_directory(directory)
         self.working_directory = directory
         self.write(f"cd {self._shell_quote(str(directory))}\n")
         self.title_changed.emit(directory.name or "Terminal")
@@ -165,6 +165,19 @@ class TerminalBridge(QObject):
     @staticmethod
     def _shell_quote(value: str) -> str:
         return "'" + value.replace("'", "'\\''") + "'"
+
+    @staticmethod
+    def _nearest_existing_directory(path: Path) -> Path:
+        """Walk up from `path` and return the closest existing ancestor.
+
+        Never creates directories on disk; falls back to the home directory
+        if no ancestor exists.
+        """
+        candidate = path.resolve()
+        for directory in (candidate, *candidate.parents):
+            if directory.is_dir():
+                return directory
+        return Path.home()
 
 
 class TerminalWidget(QWidget):
@@ -398,10 +411,11 @@ class TerminalPage(QWidget):
 
     def set_working_directory(self, directory: Path) -> None:
         self.working_directory = directory
-        self.cwd_label.setText(str(directory))
         terminal = self.current_terminal()
         if terminal is not None:
             terminal.set_working_directory(directory)
+            directory = terminal.bridge.working_directory
+        self.cwd_label.setText(str(directory))
 
     def _rename_tab(self, terminal: TerminalWidget, title: str) -> None:
         index = self.tabs.indexOf(terminal)
