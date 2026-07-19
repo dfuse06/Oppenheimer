@@ -29,6 +29,7 @@ from engine.worker import Worker
 from ui.background import BackgroundWidget
 from ui.build_page import BuildPage
 from ui.installed_kernels import InstalledKernelsPanel
+from ui.oppenheimer_ai_page import OppenheimerAIPage
 from ui.patches_page import PatchesPage
 from ui.placeholder_page import PlaceholderPage
 from ui.sidebar import Sidebar
@@ -160,6 +161,8 @@ class Oppenheimer(BackgroundWidget):
 
         self.patches_page = PatchesPage(PROJECT_DIR / "patches")
         self.installed_kernels = InstalledKernelsPanel()
+        self.oppenheimer_ai_page = OppenheimerAIPage()
+        self.oppenheimer_ai_page.set_context_provider(self.ai_context)
         self.terminal_page = TerminalPage(self.source_dir())
         self.tweaks_page = TweaksPage()
         self.kernels_page = self._wrap_page(
@@ -167,39 +170,41 @@ class Oppenheimer(BackgroundWidget):
             "MANAGE. VERIFY. REMOVE.",
             self.installed_kernels,
         )
-        
-        self.ai_page = PlaceholderPage(
-            "OPPENHEIMER AI",
-            "AI-assisted kernel configuration and build guidance will live here.",
-        )
 
         self.page_map: dict[str, QWidget] = {
             "configure": self.build_page,
             "download": self.build_page,
             "build": self.build_page,
             "install": self.build_page,
+
             "patches": self.patches_page,
             "kernels": self.kernels_page,
+            "tweaks": self.tweaks_page,
+            "terminal": self.terminal_page,
+            "ai": self.oppenheimer_ai_page,
+
             "boot": PlaceholderPage(
                 "BOOT MANAGER",
                 "Boot-entry management is staged for the next engine pass.",
             ),
-            "tweaks": self.tweaks_page,
+
             "drivers": PlaceholderPage(
                 "DRIVERS",
                 "Kernel, DKMS, GPU, DisplayLink, Razer, and controller drivers will live here.",
             ),
+
             "services": PlaceholderPage(
                 "SERVICES",
                 "Service detection and enable/disable controls will live here.",
             ),
+
             "log": self.build_page,
-            "terminal": self.terminal_page,
-            "ai": self.ai_page,
+
             "settings": PlaceholderPage(
                 "SETTINGS",
-                "Workspace, output, theme, and build defaults will live here.",
+                "Application settings will live here.",
             ),
+
             "about": PlaceholderPage(
                 "ABOUT OPPENHEIMER",
                 "DFUSE Kernel Forge\nUI 2.0 architecture",
@@ -332,6 +337,55 @@ class Oppenheimer(BackgroundWidget):
 
     def apply_dualsense(self) -> bool:
         return self.patches_page.apply_dualsense.isChecked()
+
+    def ai_context(self) -> dict:
+        try:
+            build_log = self.output.toPlainText()
+        except Exception:
+            build_log = ""
+
+        try:
+            config_path = str(self.config_file())
+            config_name = self.left.config_choice.currentText()
+        except Exception:
+            config_path = ""
+            config_name = ""
+
+        try:
+            patch_names = self.patches_page.enabled_names()
+        except Exception:
+            patch_names = []
+
+        return {
+            "application": {
+                "name": "Oppenheimer Kernel Forge",
+                "branch": "ui-redesign",
+            },
+            "kernel": {
+                "source": self.left.kernel_source.currentText(),
+                "workspace": str(self.source_dir()),
+                "running_kernel": platform.release(),
+                "local_version": self.left.local_version.text().strip(),
+            },
+            "workspace": {
+                "project_directory": str(PROJECT_DIR),
+                "source_directory": str(self.source_dir()),
+            },
+            "kernel_config": {
+                "selection": config_name,
+                "path": config_path,
+            },
+            "patches": {
+                "enabled": patch_names,
+            },
+            "build": {
+                "jobs": self.build_jobs(),
+                "mode": self.build_mode(),
+                "succeeded": self.build_succeeded,
+            },
+            "recent_build_log": build_log[-16000:],
+            "recent_terminal_output": "",
+        }
 
     def connect_signals(self) -> None:
         self.sidebar.page_requested.connect(self.show_page)
