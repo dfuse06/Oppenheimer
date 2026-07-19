@@ -12,7 +12,7 @@ import termios
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QSocketNotifier, Qt, QUrl, Signal, Slot
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
@@ -170,6 +170,10 @@ class TerminalWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.web_view = QWebEngineView(self)
+        self.web_view.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.web_view.setAutoFillBackground(False)
+        self.web_view.setStyleSheet("background: transparent; border: none;")
+        self.web_view.page().setBackgroundColor(QColor(0, 0, 0, 0))
         layout.addWidget(self.web_view)
 
         self.bridge = TerminalBridge(working_directory, self)

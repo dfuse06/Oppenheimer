@@ -8,4 +8,6 @@ razer-dfuse-y := \
 	razercommon.o \
 	razerchromacommon.o \
 	razerkbd_driver.o \
-	razermouse_driver.o
+	razermouse_driver.o \
+	razeraccessory_driver.o \
+	razerkraken_driver.o

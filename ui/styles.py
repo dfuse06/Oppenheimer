@@ -84,6 +84,27 @@ QLabel#pageTitle {
     font-weight: 800;
 }
 
+QWidget#terminalToolbar,
+QTabWidget#terminalTabs,
+QTabWidget#terminalTabs::pane {
+    background: transparent;
+    border: none;
+}
+
+QTabBar::tab {
+    background: rgba(4, 24, 28, 120);
+    border: 1px solid rgba(0, 245, 212, 55);
+    border-bottom: none;
+    color: #c9dddd;
+    padding: 5px 10px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    background: rgba(0, 245, 212, 18);
+    color: white;
+}
+
 QLabel#pageSubtitle {
     color: #b7d0cf;
     font-size: 12px;
