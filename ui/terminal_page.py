@@ -11,7 +11,7 @@ import subprocess
 import termios
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QSocketNotifier, Qt, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QSocketNotifier, Qt, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -247,11 +247,24 @@ class TerminalWidget(QWidget):
         self._page_ready = ok
         if not ok:
             return
-        self.set_theme(self._theme_name)
         pending_scripts = self._pending_js
         self._pending_js = []
         for script in pending_scripts:
             self._run_terminal_js(script)
+        # QtWebEngine's first composited frame after navigation ignores the
+        # transparent page background until a later repaint is forced (this
+        # is why the terminal previously only turned transparent once the
+        # theme was manually swapped). Re-asserting the background color and
+        # re-applying the theme a beat after load settles fixes the initial
+        # frame without requiring any user interaction.
+        QTimer.singleShot(60, self._apply_initial_theme)
+
+    def _apply_initial_theme(self) -> None:
+        if self.web_view.page() is None:
+            return
+        self.web_view.page().setBackgroundColor(QColor(0, 0, 0, 0))
+        self.set_theme(self._theme_name)
+        self.web_view.update()
 
     @Slot(int)
     def _process_exited(self, code: int) -> None:
