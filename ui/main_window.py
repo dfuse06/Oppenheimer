@@ -19,6 +19,7 @@ from engine.builder import (
     download_commands,
     prepare_commands,
 )
+from engine.hardware import detect_hardware, format_profile_report
 from engine.installer import install_commands
 from engine.tweaks import TweakValidationError
 from engine.tweaks import permanent_commands as tweak_permanent_commands
@@ -338,6 +339,12 @@ class Oppenheimer(BackgroundWidget):
     def apply_dualsense(self) -> bool:
         return self.patches_page.apply_dualsense.isChecked()
 
+    def tailor_hardware(self) -> bool:
+        return self.left.tailor_hardware.isChecked()
+
+    def trim_unused_modules(self) -> bool:
+        return self.left.trim_unused_modules.isChecked()
+
     def ai_context(self) -> dict:
         try:
             build_log = self.output.toPlainText()
@@ -395,6 +402,7 @@ class Oppenheimer(BackgroundWidget):
         self.patches_page.selection_changed.connect(self.patch_selection_changed)
         self.left.btn_check.clicked.connect(self.check_environment)
         self.left.btn_install_deps.clicked.connect(self.install_dependencies)
+        self.left.btn_detect_hw.clicked.connect(self.detect_hardware_action)
         self.left.btn_download.clicked.connect(self.download_kernel)
         self.left.btn_prepare.clicked.connect(self.prepare_kernel)
         self.left.btn_verify.clicked.connect(self.verify_kernel)
@@ -568,6 +576,11 @@ class Oppenheimer(BackgroundWidget):
         packages = " ".join(quote(package) for package in ARCH_DEPENDENCIES)
         self.run_commands([f"pkexec /usr/bin/pacman -S --needed --noconfirm {packages}"], "dependencies")
 
+    def detect_hardware_action(self) -> None:
+        self.show_page("build")
+        profile = detect_hardware()
+        self.output.append("\n" + format_profile_report(profile) + "\n")
+
     def download_kernel(self) -> None:
         self.run_commands(
             download_commands(
@@ -591,6 +604,8 @@ class Oppenheimer(BackgroundWidget):
             apply_xbox=self.apply_xbox(),
             xbox_apply=None,
             apply_dualsense=self.apply_dualsense(),
+            hardware_profile=detect_hardware() if self.tailor_hardware() else None,
+            trim_unused_modules=self.trim_unused_modules(),
         )
         self.run_commands(commands, "prepare")
 
@@ -611,6 +626,8 @@ class Oppenheimer(BackgroundWidget):
             apply_xbox=self.apply_xbox(),
             xbox_apply=None,
             apply_dualsense=self.apply_dualsense(),
+            hardware_profile=detect_hardware() if self.tailor_hardware() else None,
+            trim_unused_modules=self.trim_unused_modules(),
         )
         self.run_commands(commands, "build")
 
@@ -644,6 +661,8 @@ class Oppenheimer(BackgroundWidget):
             apply_xbox=self.apply_xbox(),
             xbox_apply=None,
             apply_dualsense=self.apply_dualsense(),
+            hardware_profile=detect_hardware() if self.tailor_hardware() else None,
+            trim_unused_modules=self.trim_unused_modules(),
         )
         commands += verification_commands(source, self.apply_razer())
         if mode == "Clean Build":

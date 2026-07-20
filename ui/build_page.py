@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFrame,
     QGridLayout,
@@ -181,6 +182,28 @@ class BuildPage(QWidget):
         grid.addWidget(self.jobs, 7, 0)
 
         config_layout.addLayout(grid)
+
+        self.tailor_hardware = QCheckBox(
+            "Tailor config to this PC's hardware (additive, safe)"
+        )
+        self.tailor_hardware.setToolTip(
+            "Detects CPU vendor, GPU, network chipset, storage and "
+            "Bluetooth, then enables the matching drivers on top of the "
+            "selected base config. Never disables anything."
+        )
+        config_layout.addWidget(self.tailor_hardware)
+
+        self.trim_unused_modules = QCheckBox(
+            "Aggressively trim unused modules (make localmodconfig)"
+        )
+        self.trim_unused_modules.setToolTip(
+            "Disables module support for anything not currently loaded. "
+            "Produces a smaller/faster-building kernel, but can omit "
+            "drivers for hardware that is not active right now (unplugged "
+            "USB devices, a second GPU, etc.)."
+        )
+        config_layout.addWidget(self.trim_unused_modules)
+
         main_column.addWidget(config_card)
 
         self.log_panel = BuildLogPanel()
@@ -207,6 +230,9 @@ class BuildPage(QWidget):
         )
         self.btn_install_deps = QPushButton(
             "INSTALL DEPENDENCIES"
+        )
+        self.btn_detect_hw = QPushButton(
+            "DETECT HARDWARE"
         )
         self.btn_download = QPushButton(
             "1. DOWNLOAD SOURCE"
@@ -255,6 +281,7 @@ class BuildPage(QWidget):
         return [
             self.btn_check,
             self.btn_install_deps,
+            self.btn_detect_hw,
             self.btn_download,
             self.btn_prepare,
             self.btn_verify,

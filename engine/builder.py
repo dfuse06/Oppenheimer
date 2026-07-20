@@ -2,6 +2,11 @@ import shlex
 import shutil
 from pathlib import Path
 
+from engine.hardware import (
+    HardwareProfile,
+    hardware_config_commands,
+    localmodconfig_commands,
+)
 from engine.verifier import verification_commands
 
 
@@ -282,6 +287,8 @@ def prepare_commands(
     apply_xbox: bool = False,
     xbox_apply: Path | None = None,
     apply_dualsense: bool = False,
+    hardware_profile: HardwareProfile | None = None,
+    trim_unused_modules: bool = False,
 ) -> list[str]:
     """Prepare the kernel configuration and apply optional patches."""
 
@@ -318,6 +325,14 @@ def prepare_commands(
             f"scripts/config --enable {quote(option)}"
         )
 
+    # Trim modules not currently loaded *before* applying the patch and
+    # hardware-detection driver selections below, so `make localmodconfig`
+    # can never undo a driver the user explicitly asked for (e.g. an Xbox
+    # controller that isn't plugged in right now would otherwise have its
+    # module support silently disabled again).
+    if trim_unused_modules:
+        commands += localmodconfig_commands(source_dir)
+
     if apply_razer:
         python = shutil.which("python3") or "python3"
 
@@ -348,6 +363,9 @@ def prepare_commands(
         source_dir=source_dir,
         apply_dualsense=apply_dualsense,
     )
+
+    if hardware_profile is not None:
+        commands += hardware_config_commands(source_dir, hardware_profile)
 
     commands += [
         (
@@ -447,6 +465,8 @@ def build_commands(
     apply_xbox: bool = False,
     xbox_apply: Path | None = None,
     apply_dualsense: bool = False,
+    hardware_profile: HardwareProfile | None = None,
+    trim_unused_modules: bool = False,
 ) -> list[str]:
     """Generate the full kernel build command sequence."""
 
@@ -466,6 +486,8 @@ def build_commands(
             apply_xbox=apply_xbox,
             xbox_apply=xbox_apply,
             apply_dualsense=apply_dualsense,
+            hardware_profile=hardware_profile,
+            trim_unused_modules=trim_unused_modules,
         )
 
         commands += verification_commands(
