@@ -1,4 +1,8 @@
 APP_STYLE = """
+QWidget#appRoot {
+    background-color: #030b0d;
+}
+
 QWidget {
     color: #e8ffff;
     font-size: 13px;

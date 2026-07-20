@@ -4,10 +4,10 @@ from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtWidgets import QWidget
 
 class BackgroundWidget(QWidget):
-    def __init__(self, image_path: Path) -> None:
+    def __init__(self, image_path: Path | None = None) -> None:
         super().__init__()
-        self.background = QPixmap(str(image_path))
-        self.overlay = QColor(0, 0, 0, 135)
+        self.background = QPixmap(str(image_path)) if image_path else QPixmap()
+        self.overlay = QColor(0, 0, 0, 105)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -20,5 +20,5 @@ class BackgroundWidget(QWidget):
             x = (self.width() - scaled.width()) // 2
             y = (self.height() - scaled.height()) // 2
             painter.drawPixmap(x, y, scaled)
-        painter.fillRect(self.rect(), self.overlay)
+            painter.fillRect(self.rect(), self.overlay)
         super().paintEvent(event)

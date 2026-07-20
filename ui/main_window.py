@@ -3,6 +3,7 @@ import shlex
 import shutil
 from pathlib import Path
 
+from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -47,6 +48,23 @@ LOG_DIR = PROJECT_DIR / "logs"
 ASSET_DIR = PROJECT_DIR / "assets"
 RAZER_APPLY = PROJECT_DIR / "patches/hid-razer/apply.py"
 BORE_APPLY = PROJECT_DIR / "patches/cachyos-bore/apply.py"
+
+DEFAULT_BACKGROUND = ASSET_DIR / "oppenheimer-background.png"
+PAGE_BACKGROUNDS: dict[str, Path] = {
+    "patches": ASSET_DIR / "opp-patch.png",
+    "kernels": ASSET_DIR / "opp-installed.png",
+    "terminal": ASSET_DIR / "opp-xterm.png",
+    "ai": ASSET_DIR / "opp-AI.png",
+    "boot": ASSET_DIR / "opp-boot.png",
+    "settings": ASSET_DIR / "opp-setting.png",
+    "about": ASSET_DIR / "opp-about.png",
+}
+
+DEFAULT_OVERLAY_ALPHA = 105
+PAGE_OVERLAY_ALPHA: dict[str, int] = {
+    "terminal": 70,
+    "ai": 150,
+}
 
 KERNEL_SOURCES = {
     "Linux Stable": {
@@ -128,7 +146,8 @@ def quote(value: object) -> str:
 
 class Oppenheimer(BackgroundWidget):
     def __init__(self) -> None:
-        super().__init__(ASSET_DIR / "oppenheimer-background.png")
+        super().__init__()
+        self.setObjectName("appRoot")
 
         self.worker: Worker | None = None
         self.build_succeeded = False
@@ -255,6 +274,11 @@ class Oppenheimer(BackgroundWidget):
             return
         self.pages.setCurrentWidget(page)
         self.sidebar.set_active(page_id)
+        image_path = PAGE_BACKGROUNDS.get(page_id, DEFAULT_BACKGROUND)
+        self.background = QPixmap(str(image_path))
+        alpha = PAGE_OVERLAY_ALPHA.get(page_id, DEFAULT_OVERLAY_ALPHA)
+        self.overlay = QColor(0, 0, 0, alpha)
+        self.update()
 
     def selected_kernel(self) -> dict:
         selected_name = self.left.kernel_source.currentText()

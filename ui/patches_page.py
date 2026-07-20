@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 import shutil
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -58,6 +58,7 @@ class PatchCard(QFrame):
         self.setObjectName("patchCard")
         self.setMinimumHeight(200 + extra_height)
         self.setMaximumHeight(230 + extra_height)
+        self.setMinimumWidth(340)
         self.setSizePolicy(
             QSizePolicy.Expanding,
             QSizePolicy.Fixed,
@@ -210,6 +211,10 @@ class PatchCard(QFrame):
         self.toggled.emit()
 
 
+CARD_MIN_WIDTH = 420
+MAX_GRID_COLUMNS = 2
+
+
 class PatchesPage(QWidget):
     selection_changed = Signal()
 
@@ -221,8 +226,8 @@ class PatchesPage(QWidget):
 
         self.state_file = self.patches_root / "patch-selections.json"
         self.cards: list[PatchCard] = []
-        self._grid_row = 0
-        self._grid_col = 0
+        self._card_entries: list[tuple[PatchCard, bool]] = []
+        self._grid_columns = MAX_GRID_COLUMNS
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -257,11 +262,11 @@ class PatchesPage(QWidget):
 
         library_layout.addLayout(toolbar)
 
-        scroll = QScrollArea()
-        scroll.setObjectName("patchScroll")
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll = QScrollArea()
+        self.scroll.setObjectName("patchScroll")
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         grid_widget = QWidget()
         grid_widget.setObjectName("patchGridWidget")
@@ -270,12 +275,11 @@ class PatchesPage(QWidget):
         self.grid.setContentsMargins(0, 0, 0, 0)
         self.grid.setHorizontalSpacing(12)
         self.grid.setVerticalSpacing(12)
-        self.grid.setColumnStretch(0, 1)
-        self.grid.setColumnStretch(1, 1)
         self.grid.setAlignment(Qt.AlignTop)
+        self._apply_column_stretch(self._grid_columns)
 
-        scroll.setWidget(grid_widget)
-        library_layout.addWidget(scroll, 1)
+        self.scroll.setWidget(grid_widget)
+        library_layout.addWidget(self.scroll, 1)
 
         root.addWidget(library, 1)
 
@@ -395,25 +399,58 @@ class PatchesPage(QWidget):
                 lambda current=card: self._validate_basic_card(current)
             )
 
-        if full_width:
-            if self._grid_col != 0:
-                self._grid_row += 1
-                self._grid_col = 0
-
-            self.grid.addWidget(card, self._grid_row, 0, 1, 2)
-            self._grid_row += 1
-        else:
-            self.grid.addWidget(card, self._grid_row, self._grid_col)
-
-            if self._grid_col == 0:
-                self._grid_col = 1
-            else:
-                self._grid_col = 0
-                self._grid_row += 1
-
         self.cards.append(card)
+        self._card_entries.append((card, full_width))
+        self._reflow_grid()
 
         return card
+
+    def _apply_column_stretch(self, columns: int) -> None:
+        for column in range(MAX_GRID_COLUMNS):
+            self.grid.setColumnStretch(column, 1 if column < columns else 0)
+
+    def _reflow_grid(self, columns: int | None = None) -> None:
+        if columns is None:
+            columns = self._grid_columns
+        else:
+            self._grid_columns = columns
+
+        while self.grid.count():
+            self.grid.takeAt(0)
+
+        row = 0
+        col = 0
+        for card, full_width in self._card_entries:
+            if full_width or columns == 1:
+                if col != 0:
+                    row += 1
+                    col = 0
+                self.grid.addWidget(card, row, 0, 1, columns)
+                row += 1
+                col = 0
+            else:
+                self.grid.addWidget(card, row, col)
+                col += 1
+                if col >= columns:
+                    col = 0
+                    row += 1
+
+        self._apply_column_stretch(columns)
+
+    def _columns_for_width(self, width: int) -> int:
+        if width <= 0:
+            return self._grid_columns
+        columns = max(1, width // CARD_MIN_WIDTH)
+        return min(columns, MAX_GRID_COLUMNS)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        QTimer.singleShot(0, self._update_columns)
+
+    def _update_columns(self) -> None:
+        columns = self._columns_for_width(self.scroll.viewport().width())
+        if columns != self._grid_columns:
+            self._reflow_grid(columns)
 
     def checkboxes(self) -> list[QCheckBox]:
         return [card.checkbox for card in self.cards]

@@ -41,7 +41,7 @@ class OppenheimerAIPage(QWidget):
         root.addWidget(subtitle)
 
         provider_card = QFrame()
-        provider_card.setObjectName("panelCard")
+        provider_card.setObjectName("glassPanel")
         provider_layout = QHBoxLayout(provider_card)
         self.provider_name = QLabel("AI PROVIDER: NOT CONFIGURED")
         self.provider_description = QLabel(
@@ -59,7 +59,7 @@ class OppenheimerAIPage(QWidget):
         root.addWidget(provider_card)
 
         context_card = QFrame()
-        context_card.setObjectName("panelCard")
+        context_card.setObjectName("glassPanel")
         context_layout = QVBoxLayout(context_card)
         context_layout.addWidget(QLabel("CONTEXT INJECTION"))
         grid = QGridLayout()
