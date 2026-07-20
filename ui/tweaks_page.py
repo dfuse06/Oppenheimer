@@ -67,12 +67,31 @@ class TweaksPage(QWidget):
         },
     }
 
+    # Only offered when the running kernel has the BORE scheduler active
+    # (see `_detect_bore_active`) - tuned to complement BORE's low-latency
+    # burst response instead of fighting it with a sluggish governor/IO stack.
+    BORE_PROFILE_NAME = "BORE (DETECTED)"
+    BORE_PROFILE = {
+        "governor": "performance",
+        "turbo": "ENABLED",
+        "energy": "performance",
+        "swappiness": 5,
+        "zram": "ENABLED",
+        "compression": "zstd",
+        "scheduler": "kyber",
+        "read_ahead": "256 KB",
+    }
+
     def __init__(self) -> None:
         super().__init__()
 
         self.current_profile = "CUSTOM"
         self.saved_state: dict[str, any] = {}
         self.profile_buttons: dict[str, QPushButton] = {}
+        self.bore_active = self._detect_bore_active()
+        self.profiles: dict[str, dict] = dict(self.PROFILES)
+        if self.bore_active:
+            self.profiles[self.BORE_PROFILE_NAME] = self.BORE_PROFILE
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -199,19 +218,27 @@ class TweaksPage(QWidget):
 
         # 1. TWEAK PROFILES
         prof_card, prof_layout = self._create_card("TWEAK PROFILES")
-        for prof_name in [
+        profile_names = [
             "1. BALANCED",
             "2. PERFORMANCE",
             "3. GAMING",
             "4. POWER SAVER",
             "5. CUSTOM",
-        ]:
+        ]
+        if self.bore_active:
+            profile_names.append(self.BORE_PROFILE_NAME)
+        for prof_name in profile_names:
             btn = QPushButton(prof_name)
             btn.setObjectName("navButton")
             btn.setCheckable(True)
             btn.clicked.connect(lambda checked, name=prof_name: self._on_profile_clicked(name))
             self.profile_buttons[prof_name] = btn
             prof_layout.addWidget(btn)
+        if self.bore_active:
+            lbl_bore_detected = QLabel("BORE scheduler detected on running kernel")
+            lbl_bore_detected.setObjectName("mutedLabel")
+            lbl_bore_detected.setWordWrap(True)
+            prof_layout.addWidget(lbl_bore_detected)
         side_column.addWidget(prof_card)
 
         # 2. TWEAK STATUS
@@ -291,6 +318,13 @@ class TweaksPage(QWidget):
             return "/dev/nvme0n1"
         return "/dev/sda"
 
+    def _detect_bore_active(self) -> bool:
+        """Detect whether the currently running kernel has the BORE scheduler
+        patch applied. BORE exposes a `kernel.sched_bore` sysctl only when
+        CONFIG_SCHED_BORE is built in, so its presence is a reliable,
+        unprivileged signal that the patch is installed and active."""
+        return Path("/proc/sys/kernel/sched_bore").exists()
+
     def _get_current_state(self) -> dict[str, any]:
         return {
             "governor": self.combo_governor.currentText(),
@@ -329,7 +363,7 @@ class TweaksPage(QWidget):
         curr = self._get_current_state()
         profile_fields = {key: value for key, value in curr.items() if key != "device"}
         matched_profile = "5. CUSTOM"
-        for prof_name, settings in self.PROFILES.items():
+        for prof_name, settings in self.profiles.items():
             if profile_fields == settings:
                 matched_profile = prof_name
                 break
@@ -344,12 +378,12 @@ class TweaksPage(QWidget):
             btn.setChecked(name == active_name)
 
     def _on_profile_clicked(self, prof_name: str, initial: bool = False) -> None:
-        if prof_name in self.PROFILES:
-            self._set_state(self.PROFILES[prof_name])
+        if prof_name in self.profiles:
+            self._set_state(self.profiles[prof_name])
 
         self._on_setting_changed()
 
-        if prof_name not in self.PROFILES:
+        if prof_name not in self.profiles:
             # Explicit "CUSTOM" selection overrides the auto-detected match.
             self.current_profile = "CUSTOM"
             self.lbl_profile_status.setText("PROFILE: CUSTOM")

@@ -359,6 +359,30 @@ class Oppenheimer(BackgroundWidget):
     def apply_bore(self) -> bool:
         return self.patches_page.apply_bore()
 
+    def _check_bore_kernel_compatibility(self) -> bool:
+        """BORE patches vanilla EEVDF/CFS scheduler files. The Zen kernel
+        source already bundles its own alternate scheduler (CONFIG_SCHED_ALT
+        / BMQ-PDS) and ZEN_INTERACTIVE tunables that rewrite the very same
+        code regions, so the BORE patch can never apply cleanly on top of
+        it. Block the combination instead of letting `patch` fail mid-build.
+        """
+        if not self.apply_bore():
+            return True
+        if "zen" not in self.left.kernel_source.currentText().lower():
+            return True
+        QMessageBox.critical(
+            self,
+            "Incompatible Patch Selection",
+            "The BORE Scheduler patch cannot be applied to the Linux Zen "
+            "kernel source.\n\nZen kernels already bundle their own "
+            "alternate scheduler (CONFIG_SCHED_ALT / BMQ-PDS) and "
+            "ZEN_INTERACTIVE tunables that modify the same scheduler code "
+            "BORE patches, so the patch will always fail to apply.\n\n"
+            "Select 'Linux Stable' as the kernel source, or disable the "
+            "BORE Scheduler patch, before preparing/building.",
+        )
+        return False
+
     def tailor_hardware(self) -> bool:
         return self.left.tailor_hardware.isChecked()
 
@@ -619,6 +643,8 @@ class Oppenheimer(BackgroundWidget):
         )
 
     def prepare_kernel(self) -> None:
+        if not self._check_bore_kernel_compatibility():
+            return
         self.build_succeeded = False
         commands = prepare_commands(
             self.source_dir(),
@@ -643,6 +669,8 @@ class Oppenheimer(BackgroundWidget):
         self.run_commands(commands, "verify")
 
     def build_kernel(self) -> None:
+        if not self._check_bore_kernel_compatibility():
+            return
         self.build_succeeded = False
         commands = build_commands(
             self.source_dir(),
@@ -671,6 +699,8 @@ class Oppenheimer(BackgroundWidget):
         self.run_commands(install_commands(self.source_dir()), "install")
 
     def prepare_and_build(self) -> None:
+        if not self._check_bore_kernel_compatibility():
+            return
         self.build_succeeded = False
         try:
             archive_url = self.kernel_archive_url()
