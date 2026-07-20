@@ -305,6 +305,22 @@ QLabel#patchFeatureList {
     font-weight: 600;
 }
 
+QCheckBox#patchSubOption {
+    color: #46ff83;
+    font-size: 10px;
+    font-weight: 700;
+    spacing: 6px;
+}
+
+QCheckBox#patchSubOption::indicator {
+    width: 13px;
+    height: 13px;
+}
+
+QCheckBox#patchSubOption:disabled {
+    color: #4d6664;
+}
+
 QLabel#patchStatus {
     color: #ff5c66;
     font-size: 10px;

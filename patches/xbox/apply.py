@@ -62,11 +62,28 @@ def parse_arguments() -> argparse.Namespace:
         required=True,
         help="Path to the Linux kernel source tree.",
     )
+    parser.add_argument(
+        "--skip-xpad",
+        action="store_true",
+        help="Do not install the XPAD (USB) driver.",
+    )
+    parser.add_argument(
+        "--skip-xpadneo",
+        action="store_true",
+        help="Do not install the XPADNEO (Bluetooth) driver.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_arguments()
+
+    install_xpad = not args.skip_xpad
+    install_xpadneo = not args.skip_xpadneo
+
+    if not install_xpad and not install_xpadneo:
+        print("ERROR: Both --skip-xpad and --skip-xpadneo were given; nothing to install.")
+        return 1
 
     package_dir = Path(__file__).resolve().parent
     metadata_file = package_dir / "metadata.json"
@@ -85,12 +102,20 @@ def main() -> int:
         kernel_src / "Kconfig",
         kernel_src / ".config",
         kernel_src / "scripts/config",
-        kernel_src / "drivers/hid/Makefile",
-        kernel_src / "drivers/hid/Kconfig",
-        kernel_src / "drivers/input/joystick/Makefile",
-        kernel_src / "drivers/input/joystick/Kconfig",
-        kernel_src / "drivers/input/joystick/xpad.c",
     ]
+
+    if install_xpad:
+        required_kernel_files += [
+            kernel_src / "drivers/input/joystick/Makefile",
+            kernel_src / "drivers/input/joystick/Kconfig",
+            kernel_src / "drivers/input/joystick/xpad.c",
+        ]
+
+    if install_xpadneo:
+        required_kernel_files += [
+            kernel_src / "drivers/hid/Makefile",
+            kernel_src / "drivers/hid/Kconfig",
+        ]
 
     for required_file in required_kernel_files:
         if not required_file.exists():
@@ -109,99 +134,109 @@ def main() -> int:
         None,
     )
 
-    if xpad_source is None:
+    if install_xpad and xpad_source is None:
         print("ERROR: XPAD source is missing from metadata.")
         return 1
 
-    if xpadneo_source is None:
+    if install_xpadneo and xpadneo_source is None:
         print("ERROR: XPADNEO source is missing from metadata.")
         return 1
 
-    xpad_src = driver_root / xpad_source["local_dir"] / "xpad.c"
-    xpad_dst = kernel_src / xpad_source["destination"] / "xpad.c"
+    xpad_config = None
 
-    if not xpad_src.is_file():
-        print(f"ERROR: XPAD source missing: {xpad_src}")
-        return 1
+    if install_xpad:
+        xpad_src = driver_root / xpad_source["local_dir"] / "xpad.c"
+        xpad_dst = kernel_src / xpad_source["destination"] / "xpad.c"
 
-    print("==> Installing XPAD", flush=True)
-    print(f"Source:      {xpad_src}", flush=True)
-    print(f"Destination: {xpad_dst}", flush=True)
-
-    shutil.copy2(xpad_src, xpad_dst)
-
-    xpadneo_src = driver_root / xpadneo_source["local_dir"] / "src"
-    xpadneo_dst = kernel_src / xpadneo_source["destination"]
-
-    required_xpadneo_files = [
-        xpadneo_src / "Kconfig",
-        xpadneo_src / "Makefile",
-        xpadneo_src / "xpadneo" / "core.c",
-        xpadneo_src / "xpadneo" / "xpadneo.h",
-        xpadneo_src / "xpadneo" / "compat.h",
-    ]
-
-    for required_file in required_xpadneo_files:
-        if not required_file.is_file():
-            print(f"ERROR: XPADNEO source incomplete: {required_file}")
+        if not xpad_src.is_file():
+            print(f"ERROR: XPAD source missing: {xpad_src}")
             return 1
 
-    print("==> Installing XPADNEO", flush=True)
-    print(f"Source:      {xpadneo_src}", flush=True)
-    print(f"Destination: {xpadneo_dst}", flush=True)
+        print("==> Installing XPAD", flush=True)
+        print(f"Source:      {xpad_src}", flush=True)
+        print(f"Destination: {xpad_dst}", flush=True)
 
-    if xpadneo_dst.exists():
-        shutil.rmtree(xpadneo_dst)
+        shutil.copy2(xpad_src, xpad_dst)
 
-    shutil.copytree(
-        xpadneo_src,
-        xpadneo_dst,
-        ignore=shutil.ignore_patterns(
-            "AGENTS.md",
-            ".editorconfig",
-            "*.o",
-            "*.ko",
-            "*.mod",
-            "*.mod.c",
-            "*.cmd",
-            "Module.symvers",
-            "modules.order",
-            "__pycache__",
-        ),
-    )
+        xpad_config = xpad_source.get(
+            "config",
+            "JOYSTICK_XPAD",
+        )
 
-    hid_makefile = kernel_src / "drivers/hid/Makefile"
-    hid_kconfig = kernel_src / "drivers/hid/Kconfig"
+        run(
+            ["scripts/config", "--module", xpad_config],
+            cwd=kernel_src,
+        )
+    else:
+        print("==> Skipping XPAD (not selected)", flush=True)
 
-    xpadneo_config = xpadneo_source.get(
-        "config",
-        "HID_XPADNEO_DFUSE",
-    )
+    xpadneo_config = None
 
-    append_once(
-        hid_makefile,
-        f"obj-$(CONFIG_{xpadneo_config}) += hid-xpadneo/",
-    )
+    if install_xpadneo:
+        xpadneo_src = driver_root / xpadneo_source["local_dir"] / "src"
+        xpadneo_dst = kernel_src / xpadneo_source["destination"]
 
-    insert_before_endmenu(
-        hid_kconfig,
-        'source "drivers/hid/hid-xpadneo/Kconfig"',
-    )
+        required_xpadneo_files = [
+            xpadneo_src / "Kconfig",
+            xpadneo_src / "Makefile",
+            xpadneo_src / "xpadneo" / "core.c",
+            xpadneo_src / "xpadneo" / "xpadneo.h",
+            xpadneo_src / "xpadneo" / "compat.h",
+        ]
 
-    xpad_config = xpad_source.get(
-        "config",
-        "JOYSTICK_XPAD",
-    )
+        for required_file in required_xpadneo_files:
+            if not required_file.is_file():
+                print(f"ERROR: XPADNEO source incomplete: {required_file}")
+                return 1
 
-    run(
-        ["scripts/config", "--module", xpad_config],
-        cwd=kernel_src,
-    )
+        print("==> Installing XPADNEO", flush=True)
+        print(f"Source:      {xpadneo_src}", flush=True)
+        print(f"Destination: {xpadneo_dst}", flush=True)
 
-    run(
-        ["scripts/config", "--module", xpadneo_config],
-        cwd=kernel_src,
-    )
+        if xpadneo_dst.exists():
+            shutil.rmtree(xpadneo_dst)
+
+        shutil.copytree(
+            xpadneo_src,
+            xpadneo_dst,
+            ignore=shutil.ignore_patterns(
+                "AGENTS.md",
+                ".editorconfig",
+                "*.o",
+                "*.ko",
+                "*.mod",
+                "*.mod.c",
+                "*.cmd",
+                "Module.symvers",
+                "modules.order",
+                "__pycache__",
+            ),
+        )
+
+        hid_makefile = kernel_src / "drivers/hid/Makefile"
+        hid_kconfig = kernel_src / "drivers/hid/Kconfig"
+
+        xpadneo_config = xpadneo_source.get(
+            "config",
+            "HID_XPADNEO_DFUSE",
+        )
+
+        append_once(
+            hid_makefile,
+            f"obj-$(CONFIG_{xpadneo_config}) += hid-xpadneo/",
+        )
+
+        insert_before_endmenu(
+            hid_kconfig,
+            'source "drivers/hid/hid-xpadneo/Kconfig"',
+        )
+
+        run(
+            ["scripts/config", "--module", xpadneo_config],
+            cwd=kernel_src,
+        )
+    else:
+        print("==> Skipping XPADNEO (not selected)", flush=True)
 
     run(
         ["make", "olddefconfig"],
@@ -210,20 +245,26 @@ def main() -> int:
 
     config_text = (kernel_src / ".config").read_text(encoding="utf-8")
 
-    expected_xpad = f"CONFIG_{xpad_config}=m"
-    expected_xpadneo = f"CONFIG_{xpadneo_config}=m"
-
-    if expected_xpad not in config_text:
-        print(f"ERROR: Missing config: {expected_xpad}")
-        return 1
-
-    if expected_xpadneo not in config_text:
-        print(f"ERROR: Missing config: {expected_xpadneo}")
-        return 1
-
     print("==> Xbox driver verification", flush=True)
-    print(expected_xpad, flush=True)
-    print(expected_xpadneo, flush=True)
+
+    if xpad_config is not None:
+        expected_xpad = f"CONFIG_{xpad_config}=m"
+
+        if expected_xpad not in config_text:
+            print(f"ERROR: Missing config: {expected_xpad}")
+            return 1
+
+        print(expected_xpad, flush=True)
+
+    if xpadneo_config is not None:
+        expected_xpadneo = f"CONFIG_{xpadneo_config}=m"
+
+        if expected_xpadneo not in config_text:
+            print(f"ERROR: Missing config: {expected_xpadneo}")
+            return 1
+
+        print(expected_xpadneo, flush=True)
+
     print("==> DFUSE Xbox Controller Support applied successfully.", flush=True)
 
     return 0

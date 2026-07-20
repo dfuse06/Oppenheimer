@@ -93,6 +93,8 @@ def xbox_config_commands(
     source_dir: Path,
     apply_xbox: bool,
     xbox_apply: Path | None = None,
+    enable_xpad: bool = True,
+    enable_xpadneo: bool = True,
 ) -> list[str]:
     """Configure Xbox controller support in the kernel."""
 
@@ -114,20 +116,40 @@ def xbox_config_commands(
             f"scripts/config --enable {quote(option)}"
         )
 
-    # Build the main Xbox controller driver as a module.
-    commands.append(
-        f"cd {quote(source_dir)} && "
-        "scripts/config --module JOYSTICK_XPAD"
-    )
-
-    for option in XBOX_XPAD_OPTIONS:
+    if enable_xpad:
+        # Build the main Xbox controller driver (USB) as a module.
         commands.append(
             f"cd {quote(source_dir)} && "
-            f"scripts/config --enable {quote(option)}"
+            "scripts/config --module JOYSTICK_XPAD"
         )
 
-    if xbox_apply is not None:
+        for option in XBOX_XPAD_OPTIONS:
+            commands.append(
+                f"cd {quote(source_dir)} && "
+                f"scripts/config --enable {quote(option)}"
+            )
+    else:
+        commands.append(
+            f"cd {quote(source_dir)} && "
+            "scripts/config --disable JOYSTICK_XPAD"
+        )
+
+    if not enable_xpadneo:
+        commands.append(
+            f"cd {quote(source_dir)} && "
+            "scripts/config --disable HID_XPADNEO_DFUSE"
+        )
+
+    if xbox_apply is not None and (enable_xpad or enable_xpadneo):
         python = shutil.which("python3") or "python3"
+
+        skip_flags = ""
+
+        if not enable_xpad:
+            skip_flags += " --skip-xpad"
+
+        if not enable_xpadneo:
+            skip_flags += " --skip-xpadneo"
 
         commands += [
             (
@@ -137,7 +159,7 @@ def xbox_config_commands(
             ),
             (
                 f"{quote(python)} {quote(xbox_apply)} "
-                f"--kernel-src {quote(source_dir)}"
+                f"--kernel-src {quote(source_dir)}{skip_flags}"
             ),
         ]
 
@@ -147,10 +169,11 @@ def xbox_config_commands(
 def xbox_verification_commands(
     source_dir: Path,
     apply_xbox: bool,
+    enable_xpad: bool = True,
 ) -> list[str]:
     """Verify Xbox controller configuration before compilation."""
 
-    if not apply_xbox:
+    if not apply_xbox or not enable_xpad:
         return [
             (
                 f"cd {quote(source_dir)} && "
@@ -286,6 +309,8 @@ def prepare_commands(
     razer_apply: Path,
     apply_xbox: bool = False,
     xbox_apply: Path | None = None,
+    enable_xpad: bool = True,
+    enable_xpadneo: bool = True,
     apply_dualsense: bool = False,
     hardware_profile: HardwareProfile | None = None,
     trim_unused_modules: bool = False,
@@ -357,6 +382,8 @@ def prepare_commands(
         source_dir=source_dir,
         apply_xbox=apply_xbox,
         xbox_apply=xbox_apply,
+        enable_xpad=enable_xpad,
+        enable_xpadneo=enable_xpadneo,
     )
 
     commands += dualsense_config_commands(
@@ -395,6 +422,7 @@ def compile_commands(
     source_dir: Path,
     jobs: int,
     apply_xbox: bool = False,
+    enable_xpad: bool = True,
     apply_dualsense: bool = False,
 ) -> list[str]:
     """Compile the kernel and verify its primary build artifacts."""
@@ -416,7 +444,7 @@ def compile_commands(
         ),
     ]
 
-    if apply_xbox:
+    if apply_xbox and enable_xpad:
         commands += [
             (
                 f"test -s "
@@ -464,6 +492,8 @@ def build_commands(
     razer_apply: Path,
     apply_xbox: bool = False,
     xbox_apply: Path | None = None,
+    enable_xpad: bool = True,
+    enable_xpadneo: bool = True,
     apply_dualsense: bool = False,
     hardware_profile: HardwareProfile | None = None,
     trim_unused_modules: bool = False,
@@ -485,6 +515,8 @@ def build_commands(
             razer_apply=razer_apply,
             apply_xbox=apply_xbox,
             xbox_apply=xbox_apply,
+            enable_xpad=enable_xpad,
+            enable_xpadneo=enable_xpadneo,
             apply_dualsense=apply_dualsense,
             hardware_profile=hardware_profile,
             trim_unused_modules=trim_unused_modules,
@@ -498,6 +530,7 @@ def build_commands(
         commands += xbox_verification_commands(
             source_dir,
             apply_xbox,
+            enable_xpad,
         )
 
         commands += dualsense_verification_commands(
@@ -514,6 +547,7 @@ def build_commands(
         commands += xbox_verification_commands(
             source_dir,
             apply_xbox,
+            enable_xpad,
         )
 
         commands += dualsense_verification_commands(
@@ -530,6 +564,7 @@ def build_commands(
         source_dir=source_dir,
         jobs=jobs,
         apply_xbox=apply_xbox,
+        enable_xpad=enable_xpad,
         apply_dualsense=apply_dualsense,
     )
 

@@ -35,16 +35,18 @@ class PatchCard(QFrame):
         checked: bool,
         managed: bool = False,
         features: list[str] | None = None,
+        sub_options: list[str] | None = None,
     ) -> None:
         super().__init__()
 
         self.patch_name = name
         self.patch_path = path
         self.managed = managed
+        self.sub_checkboxes: dict[str, QCheckBox] = {}
 
         self.setObjectName("patchCard")
-        self.setMinimumHeight(160 if not features else 200)
-        self.setMaximumHeight(190 if not features else 230)
+        self.setMinimumHeight(160 if not (features or sub_options) else 200)
+        self.setMaximumHeight(190 if not (features or sub_options) else 230)
         self.setSizePolicy(
             QSizePolicy.Expanding,
             QSizePolicy.Fixed,
@@ -75,6 +77,22 @@ class PatchCard(QFrame):
             feature_label = QLabel("  \u2022  ".join(f"\u2713 {feature}" for feature in features))
             feature_label.setObjectName("patchFeatureList")
             feature_label.setWordWrap(True)
+
+        sub_options_layout: QHBoxLayout | None = None
+        if sub_options:
+            sub_options_layout = QHBoxLayout()
+            sub_options_layout.setSpacing(16)
+
+            for option_name in sub_options:
+                option_checkbox = QCheckBox(option_name)
+                option_checkbox.setObjectName("patchSubOption")
+                option_checkbox.setChecked(True)
+                option_checkbox.toggled.connect(self._state_changed)
+
+                self.sub_checkboxes[option_name] = option_checkbox
+                sub_options_layout.addWidget(option_checkbox)
+
+            sub_options_layout.addStretch(1)
 
         path_label = QLabel(str(path))
         path_label.setObjectName("pathLabel")
@@ -109,11 +127,14 @@ class PatchCard(QFrame):
         root.addWidget(detail)
         if feature_label is not None:
             root.addWidget(feature_label)
+        if sub_options_layout is not None:
+            root.addLayout(sub_options_layout)
         root.addStretch(1)
         root.addWidget(path_label)
         root.addLayout(buttons)
 
         self.checkbox.toggled.connect(self._state_changed)
+        self.checkbox.toggled.connect(self._update_sub_option_state)
         self.btn_validate.clicked.connect(self.validate_requested.emit)
 
         if self.btn_update is not None:
@@ -122,6 +143,7 @@ class PatchCard(QFrame):
         if self.btn_remove is not None:
             self.btn_remove.clicked.connect(self.remove_requested.emit)
 
+        self._update_sub_option_state()
         self.refresh_state()
 
     def is_checked(self) -> bool:
@@ -129,6 +151,10 @@ class PatchCard(QFrame):
 
     def set_checked(self, checked: bool) -> None:
         self.checkbox.setChecked(checked)
+
+    def _update_sub_option_state(self) -> None:
+        for option_checkbox in self.sub_checkboxes.values():
+            option_checkbox.setEnabled(self.is_checked())
 
     def set_status(self, text: str, ready: bool = False) -> None:
         self.status.setText(text)
@@ -237,15 +263,15 @@ class PatchesPage(QWidget):
 
         self.xbox_card = self._add_patch_card(
             name="Xbox Controller Support",
-            description=(
-                "Native Xbox controller drivers for Linux. "
-                "Includes XPAD for USB and XPADNEO for Bluetooth."
-            ),
+            description="Native Xbox controller drivers for Linux.",
             path=self.patches_root / "xbox",
             checked=True,
             managed=True,
+            sub_options=["XPAD (USB)", "XPADNEO (Bluetooth)"],
         )
         self.apply_xbox = self.xbox_card.checkbox
+        self.apply_xpad = self.xbox_card.sub_checkboxes["XPAD (USB)"]
+        self.apply_xpadneo = self.xbox_card.sub_checkboxes["XPADNEO (Bluetooth)"]
         self.xbox_card.update_requested.connect(self._update_xbox)
         self.xbox_card.validate_requested.connect(self._validate_xbox)
         self.xbox_card.remove_requested.connect(self._remove_xbox_files)
@@ -299,6 +325,7 @@ class PatchesPage(QWidget):
         checked: bool,
         managed: bool = False,
         features: list[str] | None = None,
+        sub_options: list[str] | None = None,
     ) -> PatchCard:
         card = PatchCard(
             name=name,
@@ -307,6 +334,7 @@ class PatchesPage(QWidget):
             checked=checked,
             managed=managed,
             features=features,
+            sub_options=sub_options,
         )
 
         card.toggled.connect(self._selection_updated)
@@ -836,6 +864,14 @@ class PatchesPage(QWidget):
                 card.patch_name: card.is_checked()
                 for card in self.cards
             },
+            "sub_options": {
+                card.patch_name: {
+                    option_name: option_checkbox.isChecked()
+                    for option_name, option_checkbox in card.sub_checkboxes.items()
+                }
+                for card in self.cards
+                if card.sub_checkboxes
+            },
         }
 
         self.state_file.write_text(
@@ -855,9 +891,16 @@ class PatchesPage(QWidget):
             return
 
         enabled = data.get("enabled", {})
+        sub_options = data.get("sub_options", {})
 
         for card in self.cards:
             if card.patch_name in enabled:
                 card.set_checked(
                     bool(enabled[card.patch_name])
                 )
+
+            saved_options = sub_options.get(card.patch_name, {})
+
+            for option_name, option_checkbox in card.sub_checkboxes.items():
+                if option_name in saved_options:
+                    option_checkbox.setChecked(bool(saved_options[option_name]))

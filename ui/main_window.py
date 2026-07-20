@@ -336,6 +336,12 @@ class Oppenheimer(BackgroundWidget):
     def apply_xbox(self) -> bool:
         return self.patches_page.apply_xbox.isChecked()
 
+    def enable_xpad(self) -> bool:
+        return self.patches_page.apply_xpad.isChecked()
+
+    def enable_xpadneo(self) -> bool:
+        return self.patches_page.apply_xpadneo.isChecked()
+
     def apply_dualsense(self) -> bool:
         return self.patches_page.apply_dualsense.isChecked()
 
@@ -603,6 +609,8 @@ class Oppenheimer(BackgroundWidget):
             RAZER_APPLY,
             apply_xbox=self.apply_xbox(),
             xbox_apply=None,
+            enable_xpad=self.enable_xpad(),
+            enable_xpadneo=self.enable_xpadneo(),
             apply_dualsense=self.apply_dualsense(),
             hardware_profile=detect_hardware() if self.tailor_hardware() else None,
             trim_unused_modules=self.trim_unused_modules(),
@@ -625,6 +633,8 @@ class Oppenheimer(BackgroundWidget):
             RAZER_APPLY,
             apply_xbox=self.apply_xbox(),
             xbox_apply=None,
+            enable_xpad=self.enable_xpad(),
+            enable_xpadneo=self.enable_xpadneo(),
             apply_dualsense=self.apply_dualsense(),
             hardware_profile=detect_hardware() if self.tailor_hardware() else None,
             trim_unused_modules=self.trim_unused_modules(),
@@ -660,6 +670,8 @@ class Oppenheimer(BackgroundWidget):
             RAZER_APPLY,
             apply_xbox=self.apply_xbox(),
             xbox_apply=None,
+            enable_xpad=self.enable_xpad(),
+            enable_xpadneo=self.enable_xpadneo(),
             apply_dualsense=self.apply_dualsense(),
             hardware_profile=detect_hardware() if self.tailor_hardware() else None,
             trim_unused_modules=self.trim_unused_modules(),
@@ -671,6 +683,7 @@ class Oppenheimer(BackgroundWidget):
             source,
             self.build_jobs(),
             apply_xbox=self.apply_xbox(),
+            enable_xpad=self.enable_xpad(),
             apply_dualsense=self.apply_dualsense(),
         )
         self.run_commands(commands, "build")
