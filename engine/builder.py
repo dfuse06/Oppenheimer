@@ -38,6 +38,8 @@ DUALSENSE_CONTROLLER_OPTIONS = [
     "LEDS_CLASS_MULTICOLOR",
 ]
 
+BORE_CONFIG_OPTION = "SCHED_BORE"
+
 
 def quote(value: object) -> str:
     """Return a safely shell-quoted value."""
@@ -301,6 +303,75 @@ def dualsense_verification_commands(
     ]
 
 
+def bore_config_commands(
+    source_dir: Path,
+    apply_bore: bool,
+    bore_apply: Path | None = None,
+) -> list[str]:
+    """Apply (or disable) the BORE scheduler patch."""
+
+    if not apply_bore:
+        return [
+            f"cd {quote(source_dir)} && "
+            f"scripts/config --disable {BORE_CONFIG_OPTION}"
+        ]
+
+    commands: list[str] = [
+        "echo 'Applying BORE scheduler patch...'"
+    ]
+
+    if bore_apply is not None:
+        python = shutil.which("python3") or "python3"
+
+        commands += [
+            (
+                f"test -x {quote(bore_apply)} || "
+                f"(echo 'Missing BORE apply script: "
+                f"{quote(bore_apply)}'; exit 1)"
+            ),
+            (
+                f"{quote(python)} {quote(bore_apply)} "
+                f"--kernel-src {quote(source_dir)}"
+            ),
+        ]
+
+    commands.append(
+        f"cd {quote(source_dir)} && "
+        f"scripts/config --enable {BORE_CONFIG_OPTION}"
+    )
+
+    return commands
+
+
+def bore_verification_commands(
+    source_dir: Path,
+    apply_bore: bool,
+) -> list[str]:
+    """Verify BORE scheduler configuration before compilation."""
+
+    if not apply_bore:
+        return [
+            (
+                f"cd {quote(source_dir)} && "
+                f"if grep -q '^CONFIG_{BORE_CONFIG_OPTION}=' .config; then "
+                "echo 'WARNING: BORE scheduler remains enabled.'; "
+                "else "
+                "echo 'BORE scheduler is disabled.'; "
+                "fi"
+            )
+        ]
+
+    return [
+        (
+            f"cd {quote(source_dir)} && "
+            f"grep -q '^CONFIG_{BORE_CONFIG_OPTION}=y' .config || "
+            f"(echo 'ERROR: CONFIG_{BORE_CONFIG_OPTION} is not enabled.'; "
+            "exit 1)"
+        ),
+        "echo 'BORE scheduler configuration verified.'",
+    ]
+
+
 def prepare_commands(
     source_dir: Path,
     config: Path,
@@ -314,6 +385,8 @@ def prepare_commands(
     apply_dualsense: bool = False,
     hardware_profile: HardwareProfile | None = None,
     trim_unused_modules: bool = False,
+    apply_bore: bool = False,
+    bore_apply: Path | None = None,
 ) -> list[str]:
     """Prepare the kernel configuration and apply optional patches."""
 
@@ -391,6 +464,12 @@ def prepare_commands(
         apply_dualsense=apply_dualsense,
     )
 
+    commands += bore_config_commands(
+        source_dir=source_dir,
+        apply_bore=apply_bore,
+        bore_apply=bore_apply,
+    )
+
     if hardware_profile is not None:
         commands += hardware_config_commands(source_dir, hardware_profile)
 
@@ -410,7 +489,7 @@ def prepare_commands(
             "'HID_RAZER|JOYSTICK_XPAD|INPUT_JOYDEV|"
             "HIDRAW|LOCALVERSION|DEFAULT_HOSTNAME|"
             "FAT_FS|VFAT_FS|EXT4_FS|EFI|HID_PLAYSTATION|"
-            "PLAYSTATION_FF' "
+            "PLAYSTATION_FF|SCHED_BORE' "
             ".config || true"
         ),
     ]
@@ -497,6 +576,8 @@ def build_commands(
     apply_dualsense: bool = False,
     hardware_profile: HardwareProfile | None = None,
     trim_unused_modules: bool = False,
+    apply_bore: bool = False,
+    bore_apply: Path | None = None,
 ) -> list[str]:
     """Generate the full kernel build command sequence."""
 
@@ -520,6 +601,8 @@ def build_commands(
             apply_dualsense=apply_dualsense,
             hardware_profile=hardware_profile,
             trim_unused_modules=trim_unused_modules,
+            apply_bore=apply_bore,
+            bore_apply=bore_apply,
         )
 
         commands += verification_commands(
@@ -536,6 +619,11 @@ def build_commands(
         commands += dualsense_verification_commands(
             source_dir,
             apply_dualsense,
+        )
+
+        commands += bore_verification_commands(
+            source_dir,
+            apply_bore,
         )
 
     else:
@@ -553,6 +641,11 @@ def build_commands(
         commands += dualsense_verification_commands(
             source_dir,
             apply_dualsense,
+        )
+
+        commands += bore_verification_commands(
+            source_dir,
+            apply_bore,
         )
 
         if mode == "Clean Build":

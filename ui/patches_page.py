@@ -36,6 +36,8 @@ class PatchCard(QFrame):
         managed: bool = False,
         features: list[str] | None = None,
         sub_options: list[str] | None = None,
+        full_width: bool = False,
+        disabled_options: set[str] | None = None,
     ) -> None:
         super().__init__()
 
@@ -43,10 +45,19 @@ class PatchCard(QFrame):
         self.patch_path = path
         self.managed = managed
         self.sub_checkboxes: dict[str, QCheckBox] = {}
+        self.disabled_options = disabled_options or set()
+
+        sub_option_columns = len(sub_options) if full_width and sub_options else 2
+        sub_option_rows = (
+            (len(sub_options) + sub_option_columns - 1) // sub_option_columns
+            if sub_options
+            else 0
+        )
+        extra_height = max(0, sub_option_rows - 1) * 30
 
         self.setObjectName("patchCard")
-        self.setMinimumHeight(160 if not (features or sub_options) else 200)
-        self.setMaximumHeight(190 if not (features or sub_options) else 230)
+        self.setMinimumHeight(200 + extra_height)
+        self.setMaximumHeight(230 + extra_height)
         self.setSizePolicy(
             QSizePolicy.Expanding,
             QSizePolicy.Fixed,
@@ -78,21 +89,32 @@ class PatchCard(QFrame):
             feature_label.setObjectName("patchFeatureList")
             feature_label.setWordWrap(True)
 
-        sub_options_layout: QHBoxLayout | None = None
+        sub_options_layout: QGridLayout | None = None
         if sub_options:
-            sub_options_layout = QHBoxLayout()
-            sub_options_layout.setSpacing(16)
+            sub_options_layout = QGridLayout()
+            sub_options_layout.setHorizontalSpacing(16)
+            sub_options_layout.setVerticalSpacing(6)
 
-            for option_name in sub_options:
+            for index, option_name in enumerate(sub_options):
                 option_checkbox = QCheckBox(option_name)
                 option_checkbox.setObjectName("patchSubOption")
-                option_checkbox.setChecked(True)
-                option_checkbox.toggled.connect(self._state_changed)
+
+                if option_name in self.disabled_options:
+                    option_checkbox.setChecked(False)
+                    option_checkbox.setEnabled(False)
+                    option_checkbox.setToolTip("Not implemented yet - coming soon")
+                else:
+                    option_checkbox.setChecked(True)
+                    option_checkbox.toggled.connect(self._state_changed)
 
                 self.sub_checkboxes[option_name] = option_checkbox
-                sub_options_layout.addWidget(option_checkbox)
+                sub_options_layout.addWidget(
+                    option_checkbox,
+                    index // sub_option_columns,
+                    index % sub_option_columns,
+                )
 
-            sub_options_layout.addStretch(1)
+            sub_options_layout.setColumnStretch(sub_option_columns, 1)
 
         path_label = QLabel(str(path))
         path_label.setObjectName("pathLabel")
@@ -153,7 +175,10 @@ class PatchCard(QFrame):
         self.checkbox.setChecked(checked)
 
     def _update_sub_option_state(self) -> None:
-        for option_checkbox in self.sub_checkboxes.values():
+        for option_name, option_checkbox in self.sub_checkboxes.items():
+            if option_name in self.disabled_options:
+                continue
+
             option_checkbox.setEnabled(self.is_checked())
 
     def set_status(self, text: str, ready: bool = False) -> None:
@@ -196,6 +221,8 @@ class PatchesPage(QWidget):
 
         self.state_file = self.patches_root / "patch-selections.json"
         self.cards: list[PatchCard] = []
+        self._grid_row = 0
+        self._grid_col = 0
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -297,18 +324,38 @@ class PatchesPage(QWidget):
         self.apply_dualsense = self.dualsense_card.checkbox
 
         self.cachyos_card = self._add_patch_card(
-            name="CachyOS Base Patch Set",
-            description="CachyOS performance and desktop-oriented kernel patches.",
-            path=self.patches_root / "cachyos",
-            checked=False,
-        )
-
-        self.bore_card = self._add_patch_card(
-            name="BORE Scheduler",
-            description="Burst-Oriented Response Enhancer scheduler patch set.",
+            name="CachyOS Patch Set",
+            description=(
+                "Curated patches from CachyOS "
+                "(github.com/CachyOS/linux-cachyos): performance tuning, "
+                "schedulers, sync primitives, filesystem, and networking."
+            ),
             path=self.patches_root / "cachyos-bore",
             checked=False,
+            managed=True,
+            sub_options=[
+                "Cachy Sauce",
+                "BORE Scheduler",
+                "scx_lavd / scx_rustland",
+                "Deckify Handheld",
+                "NTSync / Fastsync / Winesync",
+                "EXT4 / Btrfs / XFS",
+                "Networking Low-Latency",
+            ],
+            full_width=True,
+            disabled_options={
+                "Cachy Sauce",
+                "scx_lavd / scx_rustland",
+                "Deckify Handheld",
+                "NTSync / Fastsync / Winesync",
+                "EXT4 / Btrfs / XFS",
+                "Networking Low-Latency",
+            },
         )
+        self.apply_bore_checkbox = self.cachyos_card.sub_checkboxes["BORE Scheduler"]
+        self.cachyos_card.update_requested.connect(self._update_bore)
+        self.cachyos_card.validate_requested.connect(self._validate_bore)
+        self.cachyos_card.remove_requested.connect(self._remove_bore_files)
 
         self.razer_card.update_requested.connect(self._update_razer)
         self.razer_card.validate_requested.connect(self._validate_razer)
@@ -326,6 +373,8 @@ class PatchesPage(QWidget):
         managed: bool = False,
         features: list[str] | None = None,
         sub_options: list[str] | None = None,
+        full_width: bool = False,
+        disabled_options: set[str] | None = None,
     ) -> PatchCard:
         card = PatchCard(
             name=name,
@@ -335,6 +384,8 @@ class PatchesPage(QWidget):
             managed=managed,
             features=features,
             sub_options=sub_options,
+            full_width=full_width,
+            disabled_options=disabled_options,
         )
 
         card.toggled.connect(self._selection_updated)
@@ -344,11 +395,22 @@ class PatchesPage(QWidget):
                 lambda current=card: self._validate_basic_card(current)
             )
 
-        index = len(self.cards)
-        row = index // 2
-        column = index % 2
+        if full_width:
+            if self._grid_col != 0:
+                self._grid_row += 1
+                self._grid_col = 0
 
-        self.grid.addWidget(card, row, column)
+            self.grid.addWidget(card, self._grid_row, 0, 1, 2)
+            self._grid_row += 1
+        else:
+            self.grid.addWidget(card, self._grid_row, self._grid_col)
+
+            if self._grid_col == 0:
+                self._grid_col = 1
+            else:
+                self._grid_col = 0
+                self._grid_row += 1
+
         self.cards.append(card)
 
         return card
@@ -368,15 +430,32 @@ class PatchesPage(QWidget):
             "Razer HID Driver": "hid-razer",
             "Xbox Controller Support": "xbox",
             "DualSense Controller Support": "dualsense",
-            "CachyOS Base Patch Set": "cachyos",
-            "BORE Scheduler": "cachyos-bore",
         }
 
-        return [
+        ids = [
             mapping[card.patch_name]
             for card in self.cards
             if card.is_checked() and card.patch_name in mapping
         ]
+
+        if self.cachyos_card.is_checked():
+            sub_mapping = {
+                "Cachy Sauce": "cachyos",
+                "BORE Scheduler": "cachyos-bore",
+                "scx_lavd / scx_rustland": "cachyos-scx",
+                "Deckify Handheld": "cachyos-deckify",
+                "NTSync / Fastsync / Winesync": "cachyos-ntsync",
+                "EXT4 / Btrfs / XFS": "cachyos-fs",
+                "Networking Low-Latency": "cachyos-net",
+            }
+
+            for option_name, patch_id in sub_mapping.items():
+                checkbox = self.cachyos_card.sub_checkboxes.get(option_name)
+
+                if checkbox is not None and checkbox.isChecked():
+                    ids.append(patch_id)
+
+        return ids
 
     def validate(self) -> None:
         for card in self.cards:
@@ -858,6 +937,198 @@ class PatchesPage(QWidget):
             ),
         )
 
+    def apply_bore(self) -> bool:
+        return (
+            self.cachyos_card.is_checked()
+            and self.apply_bore_checkbox.isChecked()
+        )
+
+    def _bore_paths(self) -> tuple[Path, Path, Path, Path]:
+        patch_dir = self.patches_root / "cachyos-bore"
+
+        return (
+            patch_dir / "metadata.json",
+            patch_dir / "upstream",
+            patch_dir / "sync_upstream.py",
+            patch_dir / "apply.py",
+        )
+
+    def _load_bore_metadata(self) -> dict:
+        metadata_file, _, _, _ = self._bore_paths()
+
+        if not metadata_file.is_file():
+            raise FileNotFoundError(
+                f"BORE metadata is missing:\n{metadata_file}"
+            )
+
+        return json.loads(
+            metadata_file.read_text(encoding="utf-8")
+        )
+
+    def _bore_validation(self) -> tuple[bool, list[str]]:
+        try:
+            self._load_bore_metadata()
+        except (OSError, ValueError, TypeError) as error:
+            return False, [str(error)]
+
+        _, upstream_dir, sync_script, apply_script = self._bore_paths()
+        missing: list[str] = []
+
+        if not sync_script.is_file():
+            missing.append("sync_upstream.py")
+
+        if not apply_script.is_file():
+            missing.append("apply.py")
+
+        if not upstream_dir.is_dir() or not any(upstream_dir.rglob("*.patch")):
+            missing.append("upstream/stable/*.patch (run Update to sync)")
+
+        return not missing, missing
+
+    def _refresh_bore_status(self) -> None:
+        valid, _missing = self._bore_validation()
+
+        self.cachyos_card.set_status(
+            "READY" if valid else "MISSING",
+            ready=valid,
+        )
+
+        self.cachyos_card.selection_label.setText(
+            "ENABLED" if self.apply_bore() else "NOT SELECTED"
+        )
+        self.cachyos_card.selection_label.setProperty(
+            "enabled",
+            self.apply_bore(),
+        )
+        self.cachyos_card.selection_label.style().unpolish(
+            self.cachyos_card.selection_label
+        )
+        self.cachyos_card.selection_label.style().polish(
+            self.cachyos_card.selection_label
+        )
+
+    def _update_bore(self) -> None:
+        _, _, sync_script, _ = self._bore_paths()
+
+        if not sync_script.is_file():
+            QMessageBox.critical(
+                self,
+                "BORE Update",
+                f"Sync script is missing:\n{sync_script}",
+            )
+            return
+
+        if self.cachyos_card.btn_update is not None:
+            self.cachyos_card.btn_update.setEnabled(False)
+
+        self.cachyos_card.set_status("UPDATING", ready=False)
+
+        try:
+            result = subprocess.run(
+                ["python3", str(sync_script)],
+                cwd=str(sync_script.parent),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError as error:
+            QMessageBox.critical(
+                self,
+                "BORE Update Failed",
+                str(error),
+            )
+            result = None
+        finally:
+            if self.cachyos_card.btn_update is not None:
+                self.cachyos_card.btn_update.setEnabled(True)
+
+        if result is None:
+            self._refresh_bore_status()
+            return
+
+        if result.returncode != 0:
+            details = result.stderr.strip() or result.stdout.strip()
+
+            QMessageBox.critical(
+                self,
+                "BORE Update Failed",
+                details or "The updater returned an error.",
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "BORE Updated",
+                result.stdout.strip()
+                or "BORE scheduler patch files updated.",
+            )
+
+        self._refresh_bore_status()
+
+    def _validate_bore(
+        self,
+        show_message: bool = True,
+    ) -> bool:
+        valid, missing = self._bore_validation()
+
+        self._refresh_bore_status()
+
+        if show_message:
+            if valid:
+                _, upstream_dir, _, _ = self._bore_paths()
+                patch_count = len(list(upstream_dir.rglob("*.patch")))
+
+                QMessageBox.information(
+                    self,
+                    "BORE Validation",
+                    (
+                        "BORE scheduler patch set is ready.\n\n"
+                        f"Vendored patch files: {patch_count}"
+                    ),
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "BORE Validation",
+                    "Missing files:\n\n"
+                    + "\n".join(f"• {item}" for item in missing),
+                )
+
+        return valid
+
+    def _remove_bore_files(self) -> None:
+        _, upstream_dir, _, _ = self._bore_paths()
+
+        answer = QMessageBox.question(
+            self,
+            "Remove Downloaded BORE Files",
+            (
+                "Remove the downloaded BORE scheduler patch files?\n\n"
+                f"{upstream_dir}"
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        if answer != QMessageBox.Yes:
+            return
+
+        removed = upstream_dir.is_dir()
+
+        if removed:
+            shutil.rmtree(upstream_dir)
+
+        self._refresh_bore_status()
+
+        QMessageBox.information(
+            self,
+            "BORE Files Removed",
+            (
+                "Removed vendored BORE patch files."
+                if removed
+                else "No vendored BORE patch files were present."
+            ),
+        )
+
     def _save_state(self) -> None:
         data = {
             "enabled": {
@@ -902,5 +1173,8 @@ class PatchesPage(QWidget):
             saved_options = sub_options.get(card.patch_name, {})
 
             for option_name, option_checkbox in card.sub_checkboxes.items():
+                if option_name in card.disabled_options:
+                    continue
+
                 if option_name in saved_options:
                     option_checkbox.setChecked(bool(saved_options[option_name]))

@@ -21,6 +21,7 @@ from engine.builder import (
 )
 from engine.hardware import detect_hardware, format_profile_report
 from engine.installer import install_commands
+from engine.kernel_releases import is_auto_version, resolve_latest_release
 from engine.tweaks import TweakValidationError
 from engine.tweaks import permanent_commands as tweak_permanent_commands
 from engine.tweaks import session_commands as tweak_session_commands
@@ -45,6 +46,7 @@ OUTPUT_DIR = PROJECT_DIR / "output"
 LOG_DIR = PROJECT_DIR / "logs"
 ASSET_DIR = PROJECT_DIR / "assets"
 RAZER_APPLY = PROJECT_DIR / "patches/hid-razer/apply.py"
+BORE_APPLY = PROJECT_DIR / "patches/cachyos-bore/apply.py"
 
 KERNEL_SOURCES = {
     "Linux Stable": {
@@ -263,6 +265,11 @@ class Oppenheimer(BackgroundWidget):
         directory_name = str(directory)
         if self.kernel_source_type() == "tarball":
             version = self.kernel_version()
+            if is_auto_version(version):
+                try:
+                    version, _ = resolve_latest_release(version)
+                except (RuntimeError, ValueError):
+                    version = version.replace(" ", "-")
             if version:
                 safe_version = version.replace(".", "-").replace("+", "-")
                 directory_name = f"{directory_name}-{safe_version}"
@@ -287,6 +294,10 @@ class Oppenheimer(BackgroundWidget):
         version = self.kernel_version()
         if not version:
             return None
+
+        if is_auto_version(version):
+            _, url = resolve_latest_release(version)
+            return url
 
         template = self.selected_kernel().get("archive_url_template")
         if not template:
@@ -344,6 +355,9 @@ class Oppenheimer(BackgroundWidget):
 
     def apply_dualsense(self) -> bool:
         return self.patches_page.apply_dualsense.isChecked()
+
+    def apply_bore(self) -> bool:
+        return self.patches_page.apply_bore()
 
     def tailor_hardware(self) -> bool:
         return self.left.tailor_hardware.isChecked()
@@ -588,13 +602,18 @@ class Oppenheimer(BackgroundWidget):
         self.output.append("\n" + format_profile_report(profile) + "\n")
 
     def download_kernel(self) -> None:
+        try:
+            archive_url = self.kernel_archive_url()
+        except RuntimeError as error:
+            QMessageBox.critical(self, "Kernel Version Lookup Failed", str(error))
+            return
         self.run_commands(
             download_commands(
                 WORKSPACE_DIR,
                 self.source_dir(),
                 self.kernel_repository(),
                 source_type=self.kernel_source_type(),
-                archive_url=self.kernel_archive_url(),
+                archive_url=archive_url,
             ),
             "download",
         )
@@ -614,6 +633,8 @@ class Oppenheimer(BackgroundWidget):
             apply_dualsense=self.apply_dualsense(),
             hardware_profile=detect_hardware() if self.tailor_hardware() else None,
             trim_unused_modules=self.trim_unused_modules(),
+            apply_bore=self.apply_bore(),
+            bore_apply=BORE_APPLY,
         )
         self.run_commands(commands, "prepare")
 
@@ -638,6 +659,8 @@ class Oppenheimer(BackgroundWidget):
             apply_dualsense=self.apply_dualsense(),
             hardware_profile=detect_hardware() if self.tailor_hardware() else None,
             trim_unused_modules=self.trim_unused_modules(),
+            apply_bore=self.apply_bore(),
+            bore_apply=BORE_APPLY,
         )
         self.run_commands(commands, "build")
 
@@ -649,6 +672,11 @@ class Oppenheimer(BackgroundWidget):
 
     def prepare_and_build(self) -> None:
         self.build_succeeded = False
+        try:
+            archive_url = self.kernel_archive_url()
+        except RuntimeError as error:
+            QMessageBox.critical(self, "Kernel Version Lookup Failed", str(error))
+            return
         source = self.source_dir()
         mode = self.build_mode()
         commands = download_commands(
@@ -656,7 +684,7 @@ class Oppenheimer(BackgroundWidget):
             source,
             self.kernel_repository(),
             source_type=self.kernel_source_type(),
-            archive_url=self.kernel_archive_url(),
+            archive_url=archive_url,
         )
         if mode == "Deep Clean (mrproper)":
             commands.append(
@@ -675,6 +703,8 @@ class Oppenheimer(BackgroundWidget):
             apply_dualsense=self.apply_dualsense(),
             hardware_profile=detect_hardware() if self.tailor_hardware() else None,
             trim_unused_modules=self.trim_unused_modules(),
+            apply_bore=self.apply_bore(),
+            bore_apply=BORE_APPLY,
         )
         commands += verification_commands(source, self.apply_razer())
         if mode == "Clean Build":

@@ -1,0 +1,11 @@
+{
+    "name": "DFUSE BORE Scheduler",
+    "version": "1.0",
+    "description": "Burst-Oriented Response Enhancer (BORE) CPU scheduler patch, synced from firelzrd/bore-scheduler and applied on top of the kernel source tree.",
+    "repository": "https://github.com/firelzrd/bore-scheduler.git",
+    "branch": "main",
+    "upstream_patch_root": "patches/stable",
+    "local_dir": "upstream/stable",
+    "config_option": "SCHED_BORE",
+    "marker_file": ".dfuse-bore-applied"
+}

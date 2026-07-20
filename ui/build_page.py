@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from engine.kernel_releases import auto_version_labels
 from ui.build_log import BuildLogPanel
 from ui.status_panel import StatusPanel
 
@@ -93,7 +94,8 @@ class BuildPage(QWidget):
         self.kernel_version = QComboBox()
         self.kernel_version.setEditable(True)
         self.kernel_version.addItems([
-            "7.2-rc3",
+            *auto_version_labels(),
+            "7.2-rc4",
             "7.1.4",
             "7.0.14",
             "6.18.39",
