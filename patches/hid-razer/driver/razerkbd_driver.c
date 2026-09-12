@@ -13,9 +13,6 @@
 #include <linux/input-event-codes.h>
 #include <linux/version.h>
 
-#define init_module razer_kbd_init_module
-#define cleanup_module razer_kbd_cleanup_module
-
 #include "usb_hid_keys.h"
 
 #include "razerkbd_driver.h"
@@ -6509,7 +6506,7 @@ MODULE_DEVICE_TABLE(hid, razer_devices);
 /**
  * Describes the contents of the driver
  */
-struct hid_driver razer_kbd_driver = {
+static struct hid_driver razer_kbd_driver = {
     .name = "razerkbd",
     .id_table = razer_devices,
     .input_mapping = razer_kbd_input_mapping,

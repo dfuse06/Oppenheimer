@@ -13,9 +13,6 @@
 #include <linux/random.h>
 #include <linux/version.h>
 
-#define init_module razer_mouse_init_module
-#define cleanup_module razer_mouse_cleanup_module
-
 #include "razermouse_driver.h"
 #include "razercommon.h"
 #include "razerchromacommon.h"
@@ -8641,7 +8638,7 @@ MODULE_DEVICE_TABLE(hid, razer_devices);
 /**
  * Describes the contents of the driver
  */
-struct hid_driver razer_mouse_driver = {
+static struct hid_driver razer_mouse_driver = {
     .name      = "razermouse",
     .id_table  = razer_devices,
     .probe     = razer_mouse_probe,

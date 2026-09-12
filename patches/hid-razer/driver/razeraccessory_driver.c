@@ -11,9 +11,6 @@
 #include <linux/hid.h>
 #include <linux/random.h>
 
-#define init_module razer_accessory_init_module
-#define cleanup_module razer_accessory_cleanup_module
-
 #include "razeraccessory_driver.h"
 #include "razercommon.h"
 #include "razerchromacommon.h"
@@ -3062,7 +3059,7 @@ MODULE_DEVICE_TABLE(hid, razer_devices);
 /**
  * Describes the contents of the driver
  */
-struct hid_driver razer_accessory_driver = {
+static struct hid_driver razer_accessory_driver = {
     .name = "razeraccessory",
     .id_table = razer_devices,
     .match = razer_accessory_match,

@@ -11,9 +11,6 @@
 #include <linux/hid.h>
 #include <linux/random.h>
 
-#define init_module razer_kraken_init_module
-#define cleanup_module razer_kraken_cleanup_module
-
 #include "razerkraken_driver.h"
 #include "razercommon.h"
 
@@ -879,7 +876,7 @@ MODULE_DEVICE_TABLE(hid, razer_devices);
 /**
  * Describes the contents of the driver
  */
-struct hid_driver razer_kraken_driver = {
+static struct hid_driver razer_kraken_driver = {
     .name = "razerkraken",
     .id_table = razer_devices,
     .probe = razer_kraken_probe,
